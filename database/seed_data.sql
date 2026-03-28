@@ -1,0 +1,16 @@
+-- ============================================================
+-- DEPRECATED: This file previously contained fake test accounts
+-- USE: seed_units_only.sql instead
+-- 
+-- seed_units_only.sql contains:
+--   - Departments, Buildings, Venues
+--   - 7 Degree Courses (BJL, BJS, BAF, BBM, BLW, BED, BPA)
+--   - 30 real units from MKU Jan-Apr 2026 Timetable
+--   - Timetable entries with real venues and schedules
+--   - Course-unit mappings for student self-enrollment
+--   - All required schema migrations
+--
+-- No fake user accounts are seeded.
+-- Students and lecturers register themselves.
+-- Admin creates their own account via /admin/login on first run.
+-- ============================================================
