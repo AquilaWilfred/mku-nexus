@@ -9,6 +9,11 @@ interface HelpRequest {
   created_at: string; updated_at: string
 }
 
+interface ResetPasswordResult {
+  tempPassword: string
+  message: string
+}
+
 const statusColors: Record<string, string> = {
   open: '#e65100', in_progress: '#1a237e', resolved: '#2e7d32', closed: '#616161'
 }
@@ -24,6 +29,9 @@ export default function AdminHelpClient({ requests: initial }: { requests: HelpR
   const [status, setStatus] = useState('in_progress')
   const [saving, setSaving] = useState(false)
   const [filterStatus, setFilterStatus] = useState('')
+  const [resettingPassword, setResettingPassword] = useState(false)
+  const [tempPassword, setTempPassword] = useState('')
+  const [showTempPassword, setShowTempPassword] = useState(false)
 
   async function loadRequests() {
     const res = await fetch('/api/admin/help')
@@ -36,6 +44,37 @@ export default function AdminHelpClient({ requests: initial }: { requests: HelpR
     setResponse(r.admin_response || '')
     setResetLink(r.reset_link || '')
     setStatus(r.status)
+    setTempPassword('')
+    setShowTempPassword(false)
+  }
+
+  async function handleResetPassword() {
+    if (!selected) return
+    setResettingPassword(true)
+    try {
+      const res = await fetch('/api/admin/help/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          helpRequestId: selected.id,
+          userEmail: selected.user_email,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        toast.success('✅ Password reset successfully!')
+        setTempPassword(data.tempPassword)
+        setShowTempPassword(true)
+        setStatus('resolved')
+        setResponse(`Password has been reset. Temporary password sent to user.\n\nUser must change password on first login.`)
+      } else {
+        toast.error(data.error || 'Failed to reset password')
+      }
+    } catch (error) {
+      toast.error('Connection error')
+    } finally {
+      setResettingPassword(false)
+    }
   }
 
   async function handleSave() {
@@ -145,14 +184,54 @@ export default function AdminHelpClient({ requests: initial }: { requests: HelpR
               </div>
 
               {selected.request_type === 'password_reset' && (
-                <div>
-                  <label className="nexus-label">🔑 Password Reset Link</label>
-                  <input className="nexus-input" value={resetLink} onChange={e => setResetLink(e.target.value)}
-                    placeholder="Paste the Supabase/custom reset link here..." />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Generate a link from Supabase Auth → Users → Send Magic Link, then paste it here. It will be visible in admin_response email.
-                  </p>
-                </div>
+                <>
+                  {!showTempPassword ? (
+                    <div className="p-4 rounded-xl border-2" style={{ background: '#fff3e0', borderColor: '#ffb74d' }}>
+                      <p className="text-sm font-semibold mb-3" style={{ color: '#e65100' }}>🔐 Password Reset Action</p>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Click the button below to generate a temporary password for this user. They will be notified and must change it on first login.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleResetPassword}
+                        disabled={resettingPassword}
+                        className="w-full py-2.5 rounded-xl font-semibold text-white disabled:opacity-60 transition-all"
+                        style={{ background: 'linear-gradient(135deg, #d32f2f, #f57c00)' }}
+                      >
+                        {resettingPassword ? '⏳ Generating...' : '🔑 Generate & Reset Password'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl border-2" style={{ background: '#e8f5e9', borderColor: '#81c784' }}>
+                      <p className="text-sm font-semibold mb-3" style={{ color: '#2e7d32' }}>✅ Password Reset Successful</p>
+                      <div className="bg-white p-3 rounded-lg mb-3 font-mono text-sm break-all" style={{ background: '#f5f5f5', border: '1px solid #e0e0e0' }}>
+                        <div className="text-xs text-gray-500 mb-1">Temporary Password:</div>
+                        <div className="text-base font-bold" style={{ color: '#e65100' }}>{tempPassword}</div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(tempPassword)
+                            toast.success('Copied to clipboard!')
+                          }}
+                          className="flex-1 py-2 rounded-lg font-semibold text-sm"
+                          style={{ background: '#2e7d32', color: 'white', border: 'none', cursor: 'pointer' }}
+                        >
+                          📋 Copy Password
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowTempPassword(false)}
+                          className="px-4 py-2 rounded-lg font-semibold text-sm"
+                          style={{ background: '#f5f5f5', color: '#333', border: '1px solid #ddd', cursor: 'pointer' }}
+                        >
+                          Hide
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               <div>

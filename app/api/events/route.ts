@@ -8,20 +8,29 @@ export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const role = (session.user as any).role as UserRole
     const { searchParams } = new URL(req.url)
     const limit = parseInt(searchParams.get('limit') || '50')
     const type = searchParams.get('type')
     let query = supabaseAdmin
       .from('events')
-      .select(`*, creator:users!events_created_by_fkey(full_name, role), unit:units(code, name), venue:venues(room_number, name, building:buildings(name, code))`)
+      .select(`*, creator:users!events_created_by_fkey(full_name, role), unit:units!events_unit_id_fkey(code, name), target_unit:units!events_unit_id_target_fkey(code, name), venue:venues(room_number, name, building:buildings(name))`)
       .eq('is_published', true)
-      .order('created_at', { ascending: false })
-      .limit(limit)
+
+    if (role === 'student') {
+      query = query.in('target_role', ['all', 'student'])
+    } else if (role === 'lecturer') {
+      query = query.in('target_role', ['all', 'lecturer'])
+    }
+
     if (type) query = query.eq('event_type', type)
     const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .limit(limit)
     if (error) throw error
     return NextResponse.json({ data, success: true })
-  } catch {
+  } catch (error) {
+    console.error('GET /api/events error:', error)
     return NextResponse.json({ error: 'Failed to fetch events' }, { status: 500 })
   }
 }
@@ -63,7 +72,20 @@ export async function POST(req: NextRequest) {
         await supabaseAdmin.from('notifications').insert(
           students.map((s: any) => ({
             user_id: s.id, title: body.title, message: body.description?.slice(0, 200),
-            type: body.is_urgent ? 'urgent' : 'info', link: '/student/events',
+            type: body.is_urgent ? 'urgent' : 'info', link: '/student/events', action_type: 'event',
+          }))
+        )
+      }
+    }
+
+    // Notify lecturers
+    if (body.target_role === 'all' || body.target_role === 'lecturer') {
+      const { data: lecturers } = await supabaseAdmin.from('users').select('id').eq('role', 'lecturer').eq('is_active', true)
+      if (lecturers?.length) {
+        await supabaseAdmin.from('notifications').insert(
+          lecturers.map((l: any) => ({
+            user_id: l.id, title: body.title, message: body.description?.slice(0, 200),
+            type: body.is_urgent ? 'urgent' : 'info', link: '/lecturer/events', action_type: 'event',
           }))
         )
       }

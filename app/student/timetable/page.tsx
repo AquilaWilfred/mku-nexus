@@ -323,7 +323,7 @@ export default function StudentTimetable() {
               <h1 className="text-2xl md:text-3xl font-bold" style={{ fontFamily:'Playfair Display, serif', color:'#1a237e' }}>
                 📅 My Weekly Timetable
               </h1>
-              <p className="text-gray-400 text-xs mt-1 flex items-center gap-2">
+              <p className="text-gray-400 text-xs mt-1 flex flex-wrap items-center gap-2">
                 {allClasses.length} sessions · Today is <strong className="text-gray-600">{today}</strong>
                 {polls.filter(p => !p.my_vote && p.is_active).length > 0 && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs animate-pulse" style={{ background:'#dbeafe', color:'#1e40af', border:'1px solid #93c5fd' }}>
@@ -331,6 +331,16 @@ export default function StudentTimetable() {
                   </span>
                 )}
               </p>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <a href="/timetable/export" target="_blank" rel="noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+                  📄 View system XML timetable
+                </a>
+                <a href="/api/timetable/export?download=true" download
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                  ⬇️ Download XML
+                </a>
+              </div>
             </div>
           </div>
 

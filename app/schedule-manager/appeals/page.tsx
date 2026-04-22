@@ -1,61 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { signOut } from 'next-auth/react'
+import SMSidebar from '@/components/shared/SMSidebar'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import toast from 'react-hot-toast'
-
-const NAV_ITEMS = [
-  { label: 'Dashboard', href: '/schedule-manager/dashboard', icon: '📊' },
-  { label: 'Timetable Appeals', href: '/schedule-manager/appeals', icon: '📋' },
-  { label: 'Manage Timetable', href: '/schedule-manager/timetable', icon: '📅' },
-  { label: 'Notifications', href: '/schedule-manager/notifications', icon: '🔔' },
-]
-
-function SMSidebar({ userName, userEmail }: { userName: string; userEmail: string }) {
-  const pathname = usePathname()
-  return (
-    <aside className="nexus-sidebar w-64 flex flex-col h-full flex-shrink-0">
-      <div className="p-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
-            <span className="text-white font-bold" style={{ fontFamily: 'Playfair Display, serif' }}>N</span>
-          </div>
-          <div>
-            <div className="text-white font-bold text-base" style={{ fontFamily: 'Playfair Display, serif' }}>MKU NEXUS</div>
-            <div className="text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>Schedule Manager</div>
-          </div>
-        </div>
-      </div>
-      <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm">
-            {userName.charAt(0).toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-white font-medium text-sm truncate">{userName}</div>
-            <div className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.6)' }}>{userEmail}</div>
-          </div>
-        </div>
-      </div>
-      <nav className="flex-1 px-3 py-3 overflow-y-auto">
-        {NAV_ITEMS.map(item => (
-          <Link key={item.href} href={item.href}
-            className={`nav-item ${pathname === item.href ? 'active' : ''}`}>
-            <span>{item.icon}</span><span className="text-sm">{item.label}</span>
-          </Link>
-        ))}
-      </nav>
-      <div className="p-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-        <button onClick={() => signOut({ callbackUrl: '/schedule-manager/login' })}
-          className="nav-item w-full text-left" style={{ color: 'rgba(255,100,100,0.9)' }}>
-          <span>🚪</span><span className="text-sm">Sign Out</span>
-        </button>
-      </div>
-    </aside>
-  )
-}
 
 const APPEAL_TYPES: Record<string, string> = {
   venue_change: '🏛️ Venue Change',

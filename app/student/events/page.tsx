@@ -27,6 +27,7 @@ export default function StudentEvents() {
   const { data: session } = useSession()
   const [events, setEvents] = useState<Event[]>([])
   const [filter, setFilter] = useState('all')
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const role = (session?.user as any)?.role || 'student'
 
   useEffect(() => {
@@ -89,8 +90,9 @@ export default function StudentEvents() {
           ) : (
             <div className="space-y-4">
               {filtered.map(ev => (
-                <div key={ev.id} className="nexus-card p-4 md:p-5"
-                  style={{ borderLeft: `4px solid ${ev.is_urgent ? '#ef4444' : '#c5cae9'}`, background: typeBg[ev.event_type] || 'white' }}>
+                <div key={ev.id} className="nexus-card p-4 md:p-5 cursor-pointer hover:shadow-lg transition-shadow"
+                  style={{ borderLeft: `4px solid ${ev.is_urgent ? '#ef4444' : '#c5cae9'}`, background: typeBg[ev.event_type] || 'white' }}
+                  onClick={() => setSelectedEvent(ev)}>
                   <div className="flex items-start gap-3">
                     <span className="text-2xl flex-shrink-0">{typeIcons[ev.event_type] || '📢'}</span>
                     <div className="flex-1 min-w-0">
@@ -101,13 +103,15 @@ export default function StudentEvents() {
                       </div>
                       <p className="text-sm text-gray-700 mt-1 leading-relaxed">{ev.description}</p>
                       <div className="flex gap-3 mt-2 text-xs text-gray-400 flex-wrap">
-                        {ev.start_datetime && <span>📅 {new Date(ev.start_datetime).toLocaleString('en-KE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
+                        {ev.start_datetime && <span>📅 {new Date(ev.start_datetime).toLocaleDateString('en-KE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
                         {ev.venue && <span>📍 {ev.venue.name || ev.venue.room_number}, {ev.venue.building?.name}</span>}
                         <span>By {ev.creator?.full_name}</span>
                         <span>{new Date(ev.created_at).toLocaleDateString('en-KE')}</span>
                       </div>
                       {ev.file_url && ev.file_name && (
-                        <DocumentPreview fileUrl={ev.file_url} fileName={ev.file_name} fileType={ev.file_type} fileSize={ev.file_size} />
+                        <div onClick={e => e.stopPropagation()}>
+                          <DocumentPreview fileUrl={ev.file_url} fileName={ev.file_name} fileType={ev.file_type} fileSize={ev.file_size} />
+                        </div>
                       )}
                     </div>
                   </div>
@@ -117,6 +121,35 @@ export default function StudentEvents() {
           )}
         </div>
       </main>
+
+      {selectedEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15, 23, 42, 0.72)' }}>
+          <div className="w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl bg-white">
+            <div className="flex items-start justify-between px-6 py-4 border-b" style={{ borderColor: '#e5e7eb' }}>
+              <div>
+                <h2 className="text-xl font-semibold" style={{ color: '#1a237e' }}>{selectedEvent.title}</h2>
+                <p className="text-sm text-gray-500">{selectedEvent.event_type.replace(/_/g, ' ').toUpperCase()}</p>
+              </div>
+              <button onClick={() => setSelectedEvent(null)} className="text-2xl text-gray-500 hover:text-gray-700">×</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex flex-wrap gap-2">
+                {selectedEvent.is_urgent && <span className="badge badge-red">🚨 Urgent</span>}
+                {selectedEvent.unit && <span className="badge badge-navy">{selectedEvent.unit.code}</span>}
+              </div>
+              {selectedEvent.start_datetime && (
+                <p className="text-sm text-gray-600">📅 {new Date(selectedEvent.start_datetime).toLocaleString('en-KE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+              )}
+              <p className="text-gray-700 leading-relaxed whitespace-pre-line">{selectedEvent.description}</p>
+              {selectedEvent.file_url && selectedEvent.file_name && (
+                <div onClick={e => e.stopPropagation()}>
+                  <DocumentPreview fileUrl={selectedEvent.file_url} fileName={selectedEvent.file_name} fileType={selectedEvent.file_type} fileSize={selectedEvent.file_size} />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

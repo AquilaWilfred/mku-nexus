@@ -82,27 +82,27 @@ export async function POST(req: NextRequest) {
           message: `A student has submitted a disability appeal requiring venue accommodation.`,
           type: 'warning',
           link: '/admin/appeals',
+          action_type: 'appeal',
         }))
       )
     }
 
-    // Notify lecturer if unit specified
-    if (body.unit_id) {
-      const { data: unit } = await supabaseAdmin
-        .from('units')
-        .select('lecturer_id')
-        .eq('id', body.unit_id)
-        .single()
+    // Notify lecturer of the unit
+    const { data: unit } = await supabaseAdmin
+      .from('units')
+      .select('lecturer_id')
+      .eq('id', body.unit_id)
+      .single()
 
-      if (unit?.lecturer_id) {
-        await supabaseAdmin.from('notifications').insert({
-          user_id: unit.lecturer_id,
-          title: '♿ Disability Appeal for Your Unit',
-          message: `A student has submitted a disability appeal for your unit requiring attention.`,
-          type: 'warning',
-          link: '/lecturer/appeals',
-        })
-      }
+    if (unit?.lecturer_id) {
+      await supabaseAdmin.from('notifications').insert({
+        user_id: unit.lecturer_id,
+        title: '♿ Disability Appeal for Your Unit',
+        message: `A student has submitted a disability appeal for your unit requiring attention.`,
+        type: 'warning',
+        link: '/lecturer/appeals',
+        action_type: 'appeal',
+      })
     }
 
     return NextResponse.json({ data, success: true })
@@ -156,6 +156,7 @@ export async function PATCH(req: NextRequest) {
       message: `Your disability appeal has been ${status}. ${notes ? `Note: ${notes}` : ''}`,
       type: status === 'approved' ? 'success' : status === 'rejected' ? 'error' : 'info',
       link: '/student/appeals',
+      action_type: 'appeal',
     })
 
     return NextResponse.json({ data, success: true })

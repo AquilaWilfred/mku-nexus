@@ -43,7 +43,7 @@ export default function AdminDashboardClient({ stats, userName }: Props) {
   ]
 
   return (
-    <main className="flex-1 overflow-y-auto p-8">
+    <main className="flex-1 overflow-y-auto p-8 md:ml-64">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>

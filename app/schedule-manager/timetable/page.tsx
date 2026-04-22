@@ -1,17 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { signOut } from 'next-auth/react'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import SMSidebar from '@/components/shared/SMSidebar'
+import DocumentPreview from '@/components/shared/DocumentPreview'
 import toast from 'react-hot-toast'
-
-const NAV_ITEMS = [
-  { label: 'Dashboard', href: '/schedule-manager/dashboard', icon: '📊' },
-  { label: 'Timetable Appeals', href: '/schedule-manager/appeals', icon: '📋' },
-  { label: 'Manage Timetable', href: '/schedule-manager/timetable', icon: '📅' },
-  { label: 'Notifications', href: '/schedule-manager/notifications', icon: '🔔' },
-]
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
 const SLOTS = [
@@ -20,38 +12,6 @@ const SLOTS = [
   { label:'13:00–16:00', start:'13:00', end:'16:00' },
   { label:'16:00–19:00', start:'16:00', end:'19:00' },
 ]
-
-function SMSidebar({ userName, userEmail }: { userName: string; userEmail: string }) {
-  const pathname = usePathname()
-  return (
-    <aside className="nexus-sidebar w-64 flex flex-col h-full flex-shrink-0">
-      <div className="p-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
-            <span className="text-white font-bold" style={{ fontFamily: 'Playfair Display, serif' }}>N</span>
-          </div>
-          <div>
-            <div className="text-white font-bold text-base" style={{ fontFamily: 'Playfair Display, serif' }}>MKU NEXUS</div>
-            <div className="text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>Schedule Manager</div>
-          </div>
-        </div>
-      </div>
-      <nav className="flex-1 px-3 py-3 overflow-y-auto">
-        {NAV_ITEMS.map(item => (
-          <Link key={item.href} href={item.href} className={`nav-item ${pathname === item.href ? 'active' : ''}`}>
-            <span>{item.icon}</span><span className="text-sm">{item.label}</span>
-          </Link>
-        ))}
-      </nav>
-      <div className="p-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-        <button onClick={() => signOut({ callbackUrl: '/schedule-manager/login' })}
-          className="nav-item w-full text-left" style={{ color: 'rgba(255,100,100,0.9)' }}>
-          <span>🚪</span><span className="text-sm">Sign Out</span>
-        </button>
-      </div>
-    </aside>
-  )
-}
 
 export default function SMTimetable() {
   const { data: session } = useSession()
@@ -62,6 +22,11 @@ export default function SMTimetable() {
   const [selected, setSelected] = useState<any | null>(null)
   const [editForm, setEditForm] = useState({ venue_id: '', day_of_week: '', start_time: '', end_time: '', reason: '' })
   const [submitting, setSubmitting] = useState(false)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [originalDocumentUrl, setOriginalDocumentUrl] = useState<string>('')
+  const [originalDocumentMeta, setOriginalDocumentMeta] = useState<{ name: string; type: string; size: number } | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadPreview, setUploadPreview] = useState<string>('')
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long' })
 
   useEffect(() => {
@@ -77,6 +42,14 @@ export default function SMTimetable() {
     }
     load()
   }, [])
+
+  useEffect(() => {
+    return () => {
+      if (originalDocumentUrl && originalDocumentUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(originalDocumentUrl)
+      }
+    }
+  }, [originalDocumentUrl])
 
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault()
@@ -107,6 +80,41 @@ export default function SMTimetable() {
     setSubmitting(false)
   }
 
+  async function handleUpload(e: React.FormEvent) {
+    e.preventDefault()
+    if (!uploadFile) return
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', uploadFile)
+
+      const res = await fetch('/api/timetable/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json()
+      if (data.success) {
+        toast.success('Timetable uploaded and processed! ✅')
+        setUploadFile(null)
+        setUploadPreview(data.preview || '')
+        if (data.fileUrl) {
+          setOriginalDocumentUrl(data.fileUrl)
+        }
+        // Reload entries
+        const r = await fetch('/api/timetable?full=true')
+        const d = await r.json()
+        if (d.success) setEntries(d.data || [])
+      } else {
+        setUploadPreview('')
+        toast.error(data.error || 'Upload failed')
+      }
+    } catch {
+      setUploadPreview('')
+      toast.error('Connection error')
+    }
+    setUploading(false)
+  }
+
   if (loading) return (
     <div className="flex h-screen" style={{ background: '#f0f4ff' }}>
       <SMSidebar userName={user?.name || ''} userEmail={user?.email || ''} />
@@ -124,6 +132,84 @@ export default function SMTimetable() {
           </h1>
           <p className="text-gray-500 text-sm mt-1">{entries.length} entries · Click any cell to edit</p>
         </div>
+
+        {/* Upload Section */}
+        <div className="nexus-card p-6 mb-6">
+          <h2 className="text-lg font-bold mb-4" style={{ fontFamily: 'Playfair Display, serif', color: '#0d47a1' }}>
+            📤 Upload Timetable Document
+          </h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Upload PDF, XML, or Excel files to automatically update the timetable. AI will extract and process the content.
+          </p>
+          <form onSubmit={handleUpload} className="flex gap-4 items-end">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Select File</label>
+              <input
+                type="file"
+                accept=".pdf,.xml,.xlsx,.xls"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null
+                  if (!file) {
+                    setUploadFile(null)
+                    setOriginalDocumentMeta(null)
+                    setOriginalDocumentUrl('')
+                    return
+                  }
+                  if (originalDocumentUrl && originalDocumentUrl.startsWith('blob:')) {
+                    URL.revokeObjectURL(originalDocumentUrl)
+                  }
+                  setUploadFile(file)
+                  setOriginalDocumentUrl(URL.createObjectURL(file))
+                  setOriginalDocumentMeta({ name: file.name, type: file.type, size: file.size })
+                }}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={uploading}
+              className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {uploading ? 'Processing...' : 'Upload & Process'}
+            </button>
+          </form>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <a href="/timetable/export" target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+              📄 View XML Exam Timetable
+            </a>
+            <a href="/api/timetable/export?download=true" download
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+              ⬇️ Download XML
+            </a>
+          </div>
+        </div>
+
+        {uploadPreview ? (
+          <div className="nexus-card p-6 mb-6">
+            <h3 className="text-base font-bold mb-3" style={{ fontFamily: 'Playfair Display, serif', color: '#0d47a1' }}>
+              📄 Preview: first page content
+            </h3>
+            <div className="max-h-80 overflow-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm whitespace-pre-wrap text-slate-700">
+              {uploadPreview}
+            </div>
+          </div>
+        ) : null}
+
+        {originalDocumentUrl && originalDocumentMeta ? (
+          <div className="nexus-card p-6 mb-6">
+            <h3 className="text-base font-bold mb-3" style={{ fontFamily: 'Playfair Display, serif', color: '#0d47a1' }}>
+              🖼️ Original document preview
+            </h3>
+            <DocumentPreview
+              fileUrl={originalDocumentUrl}
+              fileName={originalDocumentMeta.name}
+              fileType={originalDocumentMeta.type}
+              fileSize={originalDocumentMeta.size}
+            />
+          </div>
+        ) : null}
 
         <div className="nexus-card p-4 overflow-x-auto">
           <div style={{ minWidth: '860px' }}>

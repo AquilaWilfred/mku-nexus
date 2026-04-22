@@ -9,6 +9,9 @@ interface Course {
   id: string; code: string; name: string; duration_years: number; description?: string
   department?: { name: string; code: string }
 }
+interface GradeInfo {
+  id: string; score?: number; grade_letter?: string; status: string; result_released_at?: string
+}
 interface Unit {
   id: string; code: string; name: string; description?: string; credits: number
   semester: string; year: number; max_students: number
@@ -17,6 +20,13 @@ interface Unit {
   department?: { name: string; code: string }
   timetable?: { id?: string; day_of_week: string; start_time: string; end_time: string; session_type: string
     venue?: { room_number: string; name?: string; floor_number: number; building?: { name: string; has_lift: boolean } } }[]
+  // New fields from updated API
+  enrollment_status?: string | null
+  grade?: GradeInfo | null
+  status_color?: string
+  status_label?: string
+  can_enroll?: boolean
+  can_retake?: boolean
 }
 
 const dayOrder = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
@@ -45,6 +55,7 @@ export default function StudentUnitsPage() {
   const [enrolling, setEnrolling] = useState<string|null>(null)
   const [dropping, setDropping] = useState<string|null>(null)
   const [expanded, setExpanded] = useState<string|null>(null)
+  const [statusFilter, setStatusFilter] = useState<string>('all')
 
   // Step 1: Fetch the student's actual course from DB (don't trust session alone)
   useEffect(() => {
@@ -85,8 +96,8 @@ export default function StudentUnitsPage() {
   useEffect(() => { fetchCourses() }, [])
 
   useEffect(() => {
-    if (hasCourse && courseChecked) fetchMyUnits()
-  }, [hasCourse, courseChecked])
+    if (hasCourse && courseChecked) fetchMyUnits(statusFilter)
+  }, [hasCourse, courseChecked, statusFilter])
 
   useEffect(() => {
     if (view === 'browse' && myCourseId) fetchAvailable()
@@ -98,10 +109,26 @@ export default function StudentUnitsPage() {
     if (d.success) setCourses(d.data)
   }
 
-  async function fetchMyUnits() {
-    const r = await fetch('/api/units/enrolled')
-    const d = await r.json()
-    if (d.success) setMyUnits(d.data)
+  async function fetchMyUnits(status = 'all') {
+    try {
+      const query = status && status !== 'all' ? `?status=${status}` : ''
+      const r = await fetch(`/api/units/enrolled${query}`)
+      if (!r.ok) {
+        console.error('Failed to fetch enrolled units:', r.status, r.statusText)
+        toast.error('Failed to load enrolled units')
+        return
+      }
+      const d = await r.json()
+      if (d.success) {
+        setMyUnits(d.data || [])
+      } else {
+        console.error('API returned error:', d.error)
+        toast.error(d.error || 'Failed to load units')
+      }
+    } catch (error) {
+      console.error('Error fetching enrolled units:', error)
+      toast.error('Error loading enrolled units')
+    }
   }
 
   async function fetchAvailable() {
@@ -186,6 +213,10 @@ export default function StudentUnitsPage() {
 
   const totalCredits = myUnits.reduce((s, u) => s + (u.credits || 0), 0)
   const myCourse = courses.find(c => c.id === myCourseId)
+  
+  // Filter units by status
+  const filteredUnits = statusFilter === 'all' ? myUnits : myUnits.filter(u => (u.status_color || 'blue') === statusFilter)
+  
   const filtered = available.filter(u => {
     const yr = filterYear === 0 || (u.year_of_study || 1) === filterYear
     const sr = !search || u.code.toLowerCase().includes(search.toLowerCase()) || u.name.toLowerCase().includes(search.toLowerCase())
@@ -305,20 +336,68 @@ export default function StudentUnitsPage() {
           {/* ── MY ENROLLED UNITS ── */}
           {view === 'my_units' && (
             <div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_0.95fr] gap-4 mb-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    {label:'Enrolled Units',value:filteredUnits.length,icon:'📚',color:'#1a237e'},
+                    {label:'Total Credits',value:filteredUnits.reduce((s, u) => s + (u.credits || 0), 0),icon:'⭐',color:'#6a1b9a'},
+                    {label:'Semester',value:'Sem 1 2026',icon:'📅',color:'#2e7d32'},
+                    {label:'Course',value:myCourse?.code||'—',icon:'🎓',color:'#e65100'},
+                  ].map(s => (
+                    <div key={s.label} className="nexus-card p-4 text-center">
+                      <div className="text-2xl mb-1">{s.icon}</div>
+                      <div className="font-bold text-base md:text-lg" style={{color:s.color}}>{s.value}</div>
+                      <div className="text-xs text-gray-500">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="nexus-card p-4">
+                  <p className="text-xs font-semibold text-gray-600 mb-3 uppercase">Filter by Status</p>
+                  <div className="grid grid-cols-3 md:grid-cols-2 gap-2">
+                    {[
+                      { value: 'all', label: 'All', emoji: '⚪' },
+                      { value: 'blue', label: 'Required', emoji: '🔵' },
+                      { value: 'yellow', label: 'In Progress', emoji: '🟡' },
+                      { value: 'green', label: 'Completed (Pass)', emoji: '🟢' },
+                      { value: 'red', label: 'Need Retake', emoji: '🔴' },
+                      { value: 'purple', label: 'Not Registered', emoji: '🟣' }
+                    ].map(s => (
+                      <button
+                        key={s.value}
+                        onClick={() => setStatusFilter(s.value)}
+                        className="p-3 rounded-xl border-2 transition-all text-center"
+                        style={{
+                          borderColor: statusFilter === s.value ? '#1a237e' : '#e0e0ef',
+                          background: statusFilter === s.value ? '#e8eaf6' : 'white'
+                        }}
+                      >
+                        <div className="text-lg mb-1">{s.emoji}</div>
+                        <div className="text-xs font-semibold" style={{ color: statusFilter === s.value ? '#1a237e' : '#999' }}>
+                          {s.label}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Color Legend */}
+              <div className="nexus-card p-4 mb-5 grid grid-cols-2 md:grid-cols-5 gap-3">
                 {[
-                  {label:'Enrolled Units',value:myUnits.length,icon:'📚',color:'#1a237e'},
-                  {label:'Total Credits',value:totalCredits,icon:'⭐',color:'#6a1b9a'},
-                  {label:'Semester',value:'Sem 1 2026',icon:'📅',color:'#2e7d32'},
-                  {label:'Course',value:myCourse?.code||'—',icon:'🎓',color:'#e65100'},
+                  { color: 'blue', label: 'Required', emoji: '🔵' },
+                  { color: 'yellow', label: 'In Progress', emoji: '🟡' },
+                  { color: 'green', label: 'Completed (Pass)', emoji: '🟢' },
+                  { color: 'red', label: 'Need Retake', emoji: '🔴' },
+                  { color: 'purple', label: 'Not Registered', emoji: '🟣' }
                 ].map(s => (
-                  <div key={s.label} className="nexus-card p-4 text-center">
-                    <div className="text-2xl mb-1">{s.icon}</div>
-                    <div className="font-bold text-base md:text-lg" style={{color:s.color}}>{s.value}</div>
-                    <div className="text-xs text-gray-500">{s.label}</div>
+                  <div key={s.color} className="flex items-center gap-2 text-xs">
+                    <span className="text-lg">{s.emoji}</span>
+                    <span className="font-semibold text-gray-700">{s.label}</span>
                   </div>
                 ))}
               </div>
+
               {myUnits.length === 0 ? (
                 <div className="nexus-card p-12 text-center text-gray-400">
                   <div className="text-5xl mb-4">📭</div>
@@ -330,72 +409,151 @@ export default function StudentUnitsPage() {
                     Browse Units →
                   </button>
                 </div>
+              ) : filteredUnits.length === 0 ? (
+                <div className="nexus-card p-12 text-center text-gray-400">
+                  <div className="text-5xl mb-4">🔍</div>
+                  <h3 className="text-lg font-semibold mb-2">No Units Match Filter</h3>
+                  <p className="text-sm mb-4">Try adjusting your status filters.</p>
+                  <button onClick={() => setStatusFilter('all')}
+                    className="px-5 py-2.5 rounded-xl text-white font-semibold"
+                    style={{background:'linear-gradient(135deg,#1a237e,#3949ab)'}}>
+                    Reset Filters
+                  </button>
+                </div>
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {myUnits.map(u => (
-                    <div key={u.id} className="nexus-card p-5" style={{borderLeft:'4px solid #2e7d32'}}>
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <span className="font-bold" style={{color:'#1a237e'}}>{u.code}</span>
-                            <span className="badge badge-purple text-xs">{u.credits} cr</span>
-                          </div>
-                          <p className="font-semibold text-sm">{u.name}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">{u.lecturer?.full_name || 'Lecturer TBA'}</p>
-                        </div>
-                        <button onClick={() => dropUnit(u.id, u.code)} disabled={dropping===u.id}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0"
-                          style={{background:'#fce4ec',color:'#c62828'}}>
-                          {dropping===u.id ? '...' : 'Drop'}
-                        </button>
-                      </div>
-                      {u.timetable && u.timetable.length > 0 && (
-                        <div className="space-y-1.5">
-                          {u.timetable.sort((a,b) => dayOrder.indexOf(a.day_of_week)-dayOrder.indexOf(b.day_of_week)).map((t, i) => (
-                            <div key={i} className="flex items-center gap-2 p-2 rounded-lg text-xs" style={{background:'#fafbff',border:'1px solid #e8eaf6'}}>
-                              <span className="font-bold w-10 flex-shrink-0" style={{color:'#1a237e'}}>{t.day_of_week.slice(0,3)}</span>
-                              <span className="text-gray-500">{t.start_time.slice(0,5)}–{t.end_time.slice(0,5)}</span>
-                              <span className="flex-1 truncate text-gray-600">{t.venue?.name||t.venue?.room_number||'Venue TBA'}{t.venue?.building?`, ${t.venue.building.name}`:''}</span>
+                  {filteredUnits.map(u => {
+                    const colorMap: {[key: string]: string} = {
+                      'blue': '#2196f3',    // Required
+                      'yellow': '#ffc107', // In progress
+                      'green': '#4caf50',   // Completed pass
+                      'red': '#f44336',     // Failed/retake
+                      'purple': '#9c27b0',  // Not registered
+                      'gray': '#9e9e9e'     // Grade pending
+                    }
+                    const bgColorMap: {[key: string]: string} = {
+                      'blue': '#e3f2fd',
+                      'yellow': '#fff9c4',
+                      'green': '#e8f5e9',
+                      'red': '#ffebee',
+                      'purple': '#f3e5f5',
+                      'gray': '#f5f5f5'
+                    }
+                    const borderColor = colorMap[u.status_color || 'blue'] || '#2196f3'
+                    const bgColor = bgColorMap[u.status_color || 'blue'] || '#e3f2fd'
+                    
+                    return (
+                      <div key={u.id} className="nexus-card p-5 overflow-hidden" style={{borderLeft:`5px solid ${borderColor}`, background: bgColor}}>
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <span className="font-bold" style={{color:'#1a237e'}}>{u.code}</span>
+                              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full text-white" style={{background: borderColor}}>
+                                {u.status_label || 'Enrolled'}
+                              </span>
+                              <span className="badge badge-purple text-xs">{u.credits} cr</span>
                             </div>
-                          ))}
+                            <p className="font-semibold text-sm text-gray-800">{u.name}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{u.lecturer?.full_name || 'Lecturer TBA'}</p>
+                          </div>
+                          <button onClick={() => dropUnit(u.id, u.code)} disabled={dropping===u.id}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0 transition-all"
+                            style={{background:'#fce4ec',color:'#c62828'}}>
+                            {dropping===u.id ? '...' : 'Drop'}
+                          </button>
                         </div>
-                      )}
-                      <div className="flex gap-2 mt-3">
-                        <a href="/student/materials" className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{background:'#e8eaf6',color:'#1a237e'}}>📁 Materials</a>
-                        <a href="/student/forums" className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{background:'#f3e5f5',color:'#6a1b9a'}}>💬 Forum</a>
-                        <a href="/student/timetable" className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{background:'#e8f5e9',color:'#2e7d32'}}>📅 Timetable</a>
+
+                        {/* Grade info if available */}
+                        {u.grade && (
+                          <div className="mb-3 p-2.5 rounded-lg text-xs" style={{background: 'rgba(0,0,0,0.05)'}}>
+                            {u.grade.score && (
+                              <div className="font-semibold text-gray-800">
+                                Score: {u.grade.score}/100 {u.grade.grade_letter && `(${u.grade.grade_letter})`}
+                              </div>
+                            )}
+                            {u.grade.result_released_at && (
+                              <div className="text-gray-600 text-xs mt-1">
+                                Grade released: {new Date(u.grade.result_released_at).toLocaleDateString()}
+                              </div>
+                            )}
+                            {u.grade.status && (
+                              <div className="text-gray-600 text-xs mt-1">
+                                Status: {u.grade.status.replace(/_/g, ' ')}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {u.timetable && u.timetable.length > 0 && (
+                          <div className="space-y-1.5">
+                            {u.timetable.sort((a,b) => dayOrder.indexOf(a.day_of_week)-dayOrder.indexOf(b.day_of_week)).map((t, i) => (
+                              <div key={i} className="flex items-center gap-2 p-2 rounded-lg text-xs" style={{background:'rgba(0,0,0,0.03)',border:`1px solid ${borderColor}20`}}>
+                                <span className="font-bold w-10 flex-shrink-0" style={{color: borderColor}}>{t.day_of_week.slice(0,3)}</span>
+                                <span className="text-gray-600">{t.start_time.slice(0,5)}–{t.end_time.slice(0,5)}</span>
+                                <span className="flex-1 truncate text-gray-700">{t.venue?.name||t.venue?.room_number||'Venue TBA'}{t.venue?.building?`, ${t.venue.building.name}`:''}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex gap-2 mt-3 flex-wrap">
+                          <a href="/student/materials" className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{background:'#e8eaf6',color:'#1a237e'}}>📁 Materials</a>
+                          <a href="/student/forums" className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{background:'#f3e5f5',color:'#6a1b9a'}}>💬 Forum</a>
+                          <a href="/student/timetable" className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{background:'#e8f5e9',color:'#2e7d32'}}>📅 Timetable</a>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
           )}
 
-          {/* ── BROWSE & REGISTER ── */}
+          {/* ── CURRICULUM BROWSER ── */}
           {view === 'browse' && (
             <div>
+              {/* Legend */}
+              <div className="nexus-card p-4 mb-5 grid grid-cols-2 md:grid-cols-5 gap-3">
+                {[
+                  { color: 'blue', label: 'Required', emoji: '🔵' },
+                  { color: 'yellow', label: 'In Progress', emoji: '🟡' },
+                  { color: 'green', label: 'Completed (Pass)', emoji: '🟢' },
+                  { color: 'red', label: 'Need Retake', emoji: '🔴' },
+                  { color: 'purple', label: 'Not Registered', emoji: '🟣' }
+                ].map(s => (
+                  <div key={s.color} className="flex items-center gap-2 text-xs">
+                    <span className="text-lg">{s.emoji}</span>
+                    <span className="font-semibold text-gray-700">{s.label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Search & Filter */}
               <div className="nexus-card p-3 md:p-4 mb-5 flex items-center gap-3 flex-wrap">
-                <input className="nexus-input flex-1 text-sm min-w-40" placeholder="Search by code or name..."
-                  value={search} onChange={e => setSearch(e.target.value)} />
-                <select className="nexus-input text-sm" style={{width:'auto'}} value={filterYear} onChange={e => setFilterYear(parseInt(e.target.value))}>
+                <input 
+                  className="nexus-input flex-1 text-sm min-w-40" 
+                  placeholder="Search by code or name..."
+                  value={search} 
+                  onChange={e => setSearch(e.target.value)} 
+                />
+                <select 
+                  className="nexus-input text-sm" 
+                  style={{width:'auto'}} 
+                  value={filterYear} 
+                  onChange={e => setFilterYear(parseInt(e.target.value))}
+                >
                   <option value={0}>All Years</option>
                   {[1,2,3,4].map(y => <option key={y} value={y}>Year {y}</option>)}
                 </select>
-                <span className="text-xs text-gray-500 flex-shrink-0">
-                  {filtered.filter(u => u.enrolled||enrolledIds.has(u.id)).length} enrolled · {filtered.filter(u => !u.enrolled&&!enrolledIds.has(u.id)).length} available
+                <span className="text-xs text-gray-600 flex-shrink-0 font-semibold">
+                  {filtered.length} units
                 </span>
               </div>
 
-              {myUnits.length > 0 && (
-                <div className="p-3 rounded-xl mb-4 text-sm" style={{background:'#e8f5e9',borderLeft:'4px solid #2e7d32'}}>
-                  <strong className="text-green-800">✅ You have {myUnits.length} units ({totalCredits} credits).</strong>
-                  <span className="text-green-700"> Enroll in more or drop units below.</span>
-                </div>
-              )}
-
               {loading ? (
-                <div className="text-center py-16 text-gray-400"><div className="text-4xl mb-3">⏳</div><p>Loading units...</p></div>
+                <div className="nexus-card text-center py-16 text-gray-400">
+                  <div className="text-4xl mb-3">⏳</div>
+                  <p>Loading curriculum...</p>
+                </div>
               ) : filtered.length === 0 ? (
                 <div className="nexus-card p-12 text-center text-gray-400">
                   <div className="text-4xl mb-3">🔍</div>
@@ -413,61 +571,140 @@ export default function StudentUnitsPage() {
                     if (!yUnits.length) return null
                     return (
                       <div key={yr}>
-                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3 px-1">Year {yr}</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-3 px-1 flex items-center gap-2">
+                          YEAR {yr}
+                          <span className="text-xs font-normal text-gray-500">({yUnits.length} units)</span>
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                           {yUnits.map(u => {
-                            const isEnrolled = enrolledIds.has(u.id) || !!u.enrolled
                             const isExp = expanded === u.id
+                            const colorMap: {[key: string]: string} = {
+                              'blue': '#2196f3',    // Required
+                              'yellow': '#ffc107', // In progress
+                              'green': '#4caf50',   // Completed pass
+                              'red': '#f44336',     // Need retake
+                              'purple': '#9c27b0',  // Not registered
+                              'gray': '#9e9e9e'    // Grade pending
+                            }
+                            const bgColorMap: {[key: string]: string} = {
+                              'blue': '#e3f2fd',
+                              'yellow': '#fff9c4',
+                              'green': '#e8f5e9',
+                              'red': '#ffebee',
+                              'purple': '#f3e5f5',
+                              'gray': '#f5f5f5'
+                            }
+                            const borderColor = colorMap[u.status_color || 'blue'] || '#2196f3'
+                            const bgColor = bgColorMap[u.status_color || 'blue'] || '#e3f2fd'
+                            
                             return (
-                              <div key={u.id} className="nexus-card overflow-hidden"
-                                style={{borderLeft:`4px solid ${isEnrolled?'#2e7d32':'#c5cae9'}`}}>
+                              <div 
+                                key={u.id} 
+                                className="nexus-card overflow-hidden transition-all hover:shadow-md"
+                                style={{borderLeft:`5px solid ${borderColor}`, background: bgColor}}
+                              >
                                 <div className="p-4">
-                                  <div className="flex items-start gap-2">
+                                  <div className="flex items-start gap-2 mb-3">
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-1.5 flex-wrap mb-1">
                                         <span className="font-bold text-sm" style={{color:'#1a237e'}}>{u.code}</span>
-                                        <span className="badge badge-purple text-xs">{u.credits}cr</span>
+                                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full text-white" style={{background: borderColor}}>
+                                          {u.status_label}
+                                        </span>
+                                        <span className="badge badge-purple text-xs">{u.credits} cr</span>
                                         {u.is_required && <span className="badge badge-orange text-xs">Required</span>}
-                                        {isEnrolled && <span className="badge badge-green text-xs">✓ Enrolled</span>}
                                       </div>
-                                      <p className="text-sm font-medium text-gray-800 leading-snug">{u.name}</p>
-                                      <p className="text-xs text-gray-400 mt-0.5">{u.lecturer?.full_name||'Lecturer TBA'}</p>
-                                    </div>
-                                    <div className="flex flex-col gap-1 flex-shrink-0">
-                                      {isEnrolled ? (
-                                        <button onClick={() => dropUnit(u.id, u.code)} disabled={dropping===u.id}
-                                          className="px-2.5 py-1.5 rounded-lg text-xs font-semibold"
-                                          style={{background:'#fce4ec',color:'#c62828'}}>
-                                          {dropping===u.id ? '...' : 'Drop'}
-                                        </button>
-                                      ) : (
-                                        <button onClick={() => enroll(u.id, u.code)} disabled={enrolling===u.id}
-                                          className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white"
-                                          style={{background:'linear-gradient(135deg,#1a237e,#3949ab)'}}>
-                                          {enrolling===u.id ? '...' : '+Enroll'}
-                                        </button>
-                                      )}
-                                      <button onClick={() => setExpanded(isExp ? null : u.id)}
-                                        className="px-2.5 py-1.5 rounded-lg text-xs font-semibold"
-                                        style={{background:'#f5f5f5',color:'#666'}}>
-                                        {isExp ? '▲' : 'Info'}
-                                      </button>
+                                      <p className="text-sm font-semibold text-gray-800 leading-snug">{u.name}</p>
+                                      <p className="text-xs text-gray-600 mt-1">{u.lecturer?.full_name||'Lecturer TBA'}</p>
                                     </div>
                                   </div>
+
+                                  {/* Grade info if available */}
+                                  {u.grade && (
+                                    <div className="mb-3 p-2 rounded-lg text-xs" style={{background: 'rgba(0,0,0,0.05)'}}>
+                                      {u.grade.score && (
+                                        <div className="font-semibold">
+                                          Score: {u.grade.score}/100 {u.grade.grade_letter && `(${u.grade.grade_letter})`}
+                                        </div>
+                                      )}
+                                      {u.grade.result_released_at && (
+                                        <div className="text-gray-600 text-xs mt-1">
+                                          Grade released: {new Date(u.grade.result_released_at).toLocaleDateString()}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Action buttons */}
+                                  <div className="flex gap-2">
+                                    {u.enrollment_status === 'active' ? (
+                                      <button 
+                                        onClick={() => dropUnit(u.id, u.code)} 
+                                        disabled={dropping===u.id}
+                                        className="flex-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                                        style={{background:'#fce4ec',color:'#c62828'}}>
+                                        {dropping===u.id ? '...' : '✕ Drop'}
+                                      </button>
+                                    ) : u.can_retake ? (
+                                      <button 
+                                        onClick={() => enroll(u.id, u.code)} 
+                                        disabled={enrolling===u.id}
+                                        className="flex-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white"
+                                        style={{background:'#ff6f00'}}>
+                                        {enrolling===u.id ? '...' : '🔄 Retake'}
+                                      </button>
+                                    ) : u.can_enroll ? (
+                                      <button 
+                                        onClick={() => enroll(u.id, u.code)} 
+                                        disabled={enrolling===u.id}
+                                        className="flex-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white"
+                                        style={{background:'linear-gradient(135deg,#1a237e,#3949ab)'}}>
+                                        {enrolling===u.id ? '...' : '+ Enroll'}
+                                      </button>
+                                    ) : (
+                                      <button 
+                                        disabled
+                                        className="flex-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+                                        style={{background:'#e0e0e0',color:'#999'}}>
+                                        Not Available
+                                      </button>
+                                    )}
+                                    <button 
+                                      onClick={() => setExpanded(isExp ? null : u.id)}
+                                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+                                      style={{background:'#f5f5f5',color:'#666'}}>
+                                      {isExp ? '▲' : 'ℹ'}
+                                    </button>
+                                  </div>
+
+                                  {/* Expandable details */}
                                   {isExp && (
-                                    <div className="mt-3 space-y-2">
+                                    <div className="mt-3 space-y-2 border-t pt-2">
                                       {u.description && (
-                                        <p className="text-xs text-gray-600 leading-relaxed p-2 rounded-lg" style={{background:'#f8f9ff'}}>{u.description}</p>
+                                        <p className="text-xs text-gray-700 leading-relaxed p-2 rounded-lg" style={{background:'rgba(0,0,0,0.03)'}}>
+                                          {u.description}
+                                        </p>
                                       )}
                                       {u.timetable && u.timetable.length > 0
-                                        ? u.timetable.sort((a,b) => dayOrder.indexOf(a.day_of_week)-dayOrder.indexOf(b.day_of_week)).map((t, i) => (
-                                            <div key={i} className="flex items-center gap-2 text-xs p-2 rounded-lg" style={{background:'#f0f2ff'}}>
-                                              <span className="font-bold w-10 flex-shrink-0" style={{color:'#1a237e'}}>{t.day_of_week.slice(0,3)}</span>
-                                              <span>{t.start_time.slice(0,5)}–{t.end_time.slice(0,5)}</span>
-                                              <span className="flex-1 truncate">📍 {t.venue?.name||t.venue?.room_number||'TBA'}</span>
-                                            </div>
-                                          ))
-                                        : <p className="text-xs text-gray-400 italic p-2">No timetable assigned yet.</p>
+                                        ? (
+                                          <div>
+                                            <div className="text-xs font-semibold text-gray-600 mb-1">Schedule:</div>
+                                            {u.timetable.sort((a,b) => dayOrder.indexOf(a.day_of_week)-dayOrder.indexOf(b.day_of_week)).map((t, i) => (
+                                              <div key={i} className="flex items-center gap-2 text-xs p-1.5 rounded" style={{background:'rgba(0,0,0,0.03)'}}>
+                                                <span className="font-bold w-12 flex-shrink-0" style={{color:'#1a237e'}}>
+                                                  {t.day_of_week.slice(0,3)}
+                                                </span>
+                                                <span className="text-gray-600">
+                                                  {t.start_time.slice(0,5)}–{t.end_time.slice(0,5)}
+                                                </span>
+                                                <span className="flex-1 truncate text-gray-700">
+                                                  📍 {t.venue?.name||t.venue?.room_number||'TBA'}
+                                                </span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )
+                                        : <p className="text-xs text-gray-500 italic p-1">No schedule assigned yet</p>
                                       }
                                     </div>
                                   )}
@@ -479,47 +716,6 @@ export default function StudentUnitsPage() {
                       </div>
                     )
                   })}
-                  {/* Units with no year_of_study */}
-                  {(() => {
-                    const other = filtered.filter(u => !u.year_of_study)
-                    if (!other.length) return null
-                    return (
-                      <div>
-                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3 px-1">Other Units</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                          {other.map(u => {
-                            const isEnrolled = enrolledIds.has(u.id)||!!u.enrolled
-                            return (
-                              <div key={u.id} className="nexus-card p-4" style={{borderLeft:`4px solid ${isEnrolled?'#2e7d32':'#e0e0ef'}`}}>
-                                <div className="flex items-start gap-2">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                                      <span className="font-bold text-sm" style={{color:'#1a237e'}}>{u.code}</span>
-                                      <span className="badge badge-purple text-xs">{u.credits}cr</span>
-                                      {isEnrolled && <span className="badge badge-green text-xs">✓</span>}
-                                    </div>
-                                    <p className="text-sm font-medium text-gray-800">{u.name}</p>
-                                    <p className="text-xs text-gray-400 mt-0.5">{u.lecturer?.full_name||'TBA'}</p>
-                                  </div>
-                                  {isEnrolled ? (
-                                    <button onClick={() => dropUnit(u.id, u.code)}
-                                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0"
-                                      style={{background:'#fce4ec',color:'#c62828'}}>Drop</button>
-                                  ) : (
-                                    <button onClick={() => enroll(u.id, u.code)} disabled={enrolling===u.id}
-                                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white flex-shrink-0"
-                                      style={{background:'linear-gradient(135deg,#1a237e,#3949ab)'}}>
-                                      {enrolling===u.id ? '...' : '+Enroll'}
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )
-                  })()}
                 </div>
               )}
             </div>

@@ -28,6 +28,11 @@ export default function AdminLogin() {
   const [loading, setLoading] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [activeStat, setActiveStat] = useState(0)
+  const [forgotMode, setForgotMode] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotLoading, setForgotLoading] = useState(false)
+  const [forgotSent, setForgotSent] = useState(false)
+  const [isScheduleManager, setIsScheduleManager] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -40,11 +45,80 @@ export default function AdminLogin() {
     e.preventDefault()
     setLoading(true)
     try {
-      const result = await signIn('admin-login', { email, password, redirect: false })
-      if (result?.ok) { toast.success('Welcome, Administrator! ✅'); router.push('/admin/dashboard') }
-      else toast.error('Invalid admin credentials.')
-    } catch { toast.error('Connection error.') }
-    finally { setLoading(false) }
+      const provider = isScheduleManager ? 'schedule-manager-login' : 'admin-login'
+      const result = await signIn(provider, { email, password, redirect: false })
+      if (result?.ok) {
+        if (isScheduleManager) {
+          toast.success('Welcome, Schedule Manager! ✅')
+          router.push('/schedule-manager/dashboard')
+        } else {
+          toast.success('Welcome, Administrator! ✅')
+          router.push('/admin/dashboard')
+        }
+      } else {
+        toast.error(isScheduleManager ? 'Invalid schedule manager credentials.' : 'Invalid admin credentials.')
+      }
+    } catch {
+      toast.error('Connection error.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault()
+    if (!forgotEmail) { toast.error('Please enter your email'); return }
+    setForgotLoading(true)
+    try {
+      const requestedRole = isScheduleManager ? 'schedule_manager' : 'admin'
+      const res = await fetch('/api/help/password-reset', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail, role: requestedRole }),
+      })
+      const data = await res.json()
+      if (data.success) setForgotSent(true)
+      else toast.error(data.error || 'Failed to send request')
+    } catch { toast.error('Connection error') }
+    finally { setForgotLoading(false) }
+  }
+
+  if (forgotMode) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #052e16 0%, #14532d 50%, #166534 100%)' }}>
+        <div className="w-full max-w-md">
+          <div className="rounded-2xl p-8 shadow-2xl" style={{ background: 'rgba(255,255,255,0.97)' }}>
+            <button onClick={() => { setForgotMode(false); setForgotSent(false) }}
+              className="flex items-center gap-2 text-sm mb-6 hover:opacity-70 transition-opacity" style={{ color: '#14532d', background: 'none', border: 'none', cursor: 'pointer' }}>
+              ← Back to sign in
+            </button>
+            {forgotSent ? (
+              <div className="text-center py-4">
+                <div className="text-6xl mb-4 animate-bounce">📧</div>
+                <h2 className="text-2xl font-bold mb-3" style={{ fontFamily: 'Playfair Display, serif', color: '#14532d' }}>Request Sent!</h2>
+                <p className="text-gray-600 text-sm mb-4">{isScheduleManager ? 'Schedule Manager' : 'Admin'} password reset request received for <strong>{forgotEmail}</strong>.</p>
+                <button onClick={() => { setForgotMode(false); setForgotSent(false) }} className="btn-primary">Back to Sign In</button>
+              </div>
+            ) : (
+              <>
+                <div className="text-4xl mb-4">🔑</div>
+                <h2 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Playfair Display, serif', color: '#14532d' }}>Reset Password</h2>
+                <p className="text-gray-500 text-sm mb-6">Enter your {isScheduleManager ? 'schedule manager' : 'admin'} email to request a reset link.</p>
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div>
+                    <label className="nexus-label">{isScheduleManager ? 'Schedule Manager Email' : 'Admin Email'}</label>
+                    <input type="email" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)}
+                      placeholder={isScheduleManager ? 'manager@mku.ac.ke' : 'admin@mku.ac.ke'} className="nexus-input" required />
+                  </div>
+                  <button type="submit" disabled={forgotLoading} className="btn-primary w-full justify-center py-3 disabled:opacity-60">
+                    {forgotLoading ? 'Sending...' : '📧 Send Reset Request'}
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -121,14 +195,18 @@ export default function AdminLogin() {
               style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #86efac' }}>
               🛡️ Restricted Access — All actions logged
             </div>
-            <h2 className="text-3xl font-bold mb-1.5" style={{ fontFamily: 'Playfair Display, serif', color: '#14532d' }}>Admin Sign In</h2>
-            <p className="text-gray-500 text-sm mb-7">Authorized personnel only. Sessions are monitored.</p>
+            <h2 className="text-3xl font-bold mb-1.5" style={{ fontFamily: 'Playfair Display, serif', color: '#14532d' }}>
+              {isScheduleManager ? 'Schedule Manager Sign In' : 'Admin Sign In'}
+            </h2>
+            <p className="text-gray-500 text-sm mb-7">
+              {isScheduleManager ? 'Schedule Manager access — use your schedule manager credentials.' : 'Authorized personnel only. Sessions are monitored.'}
+            </p>
 
             <form onSubmit={handleLogin} className="space-y-5">
               <div>
-                <label className="nexus-label">Admin Email</label>
+                <label className="nexus-label">{isScheduleManager ? 'Schedule Manager Email' : 'Admin Email'}</label>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="admin@mku.ac.ke" className="nexus-input" required />
+                  placeholder={isScheduleManager ? 'manager@mku.ac.ke' : 'admin@mku.ac.ke'} className="nexus-input" required />
               </div>
               <div>
                 <label className="nexus-label">Password</label>
@@ -140,6 +218,17 @@ export default function AdminLogin() {
                     tabIndex={-1}>{showPassword ? '🙈' : '👁️'}</button>
                 </div>
               </div>
+              <div className="flex items-center justify-between gap-3">
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={isScheduleManager} onChange={e => setIsScheduleManager(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                  Schedule Manager
+                </label>
+                <button type="button" onClick={() => setForgotMode(true)}
+                  className="text-sm hover:underline" style={{ color: '#14532d', background: 'none', border: 'none', cursor: 'pointer' }}>
+                  Forgot password?
+                </button>
+              </div>
               <button type="submit" disabled={loading}
                 className="w-full py-3.5 rounded-xl font-semibold text-white text-base disabled:opacity-60 transition-all hover:shadow-lg"
                 style={{ background: loading ? '#9ca3af' : 'linear-gradient(135deg, #14532d 0%, #16a34a 100%)' }}>
@@ -148,7 +237,7 @@ export default function AdminLogin() {
                     <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                     Authenticating...
                   </span>
-                ) : '🛡️ Sign In to Admin Portal'}
+                ) : isScheduleManager ? '📋 Sign In as Schedule Manager' : '🛡️ Sign In to Admin Portal'}
               </button>
             </form>
 

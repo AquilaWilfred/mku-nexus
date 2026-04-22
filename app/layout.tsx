@@ -1,7 +1,13 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
-import SessionProvider from '@/components/shared/SessionProvider'
+import dynamic from 'next/dynamic'
+
+// Make SessionProvider client-only to prevent hydration mismatches
+const SessionProvider = dynamic(() => import('@/components/shared/SessionProvider'), {
+  ssr: false,
+  loading: () => <>{/* Loading placeholder */}</>
+})
 
 export const metadata: Metadata = {
   title: 'MKU NEXUS — Smart Academic Platform',

@@ -25,6 +25,7 @@ export default function LecturerAppeals() {
   const { data: session } = useSession()
   const [appeals, setAppeals] = useState<Appeal[]>([])
   const [selectedAppeal, setSelectedAppeal] = useState<Appeal | null>(null)
+  const [reviewStatus, setReviewStatus] = useState('under_review')
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -110,17 +111,25 @@ export default function LecturerAppeals() {
                   )}
                 </div>
                 <div className="mb-4">
+                  <label className="nexus-label">Decision</label>
+                  <select value={reviewStatus} onChange={e => setReviewStatus(e.target.value)} className="nexus-input">
+                    <option value="under_review">🔍 Under Review</option>
+                    <option value="approved">✅ Approve</option>
+                    <option value="rejected">❌ Reject</option>
+                  </select>
+                </div>
+                <div className="mb-4">
                   <label className="nexus-label">Your Assessment Notes</label>
                   <textarea className="nexus-input" rows={3} value={notes}
                     onChange={e => setNotes(e.target.value)}
                     placeholder="Comment on the student's situation, confirm the need, suggest alternatives..." />
                 </div>
                 <div className="flex gap-3">
-                  <button onClick={() => submitReview(selectedAppeal.id, 'under_review')}
-                    disabled={submitting}
+                  <button onClick={() => submitReview(selectedAppeal.id, reviewStatus)}
+                    disabled={submitting || !reviewStatus}
                     className="flex-1 py-2.5 rounded-xl font-semibold text-sm text-white disabled:opacity-60"
                     style={{ background: 'linear-gradient(135deg, #6a1b9a, #9c27b0)' }}>
-                    Forward to Admin
+                    {reviewStatus === 'approved' ? '✅ Approve' : reviewStatus === 'rejected' ? '❌ Reject' : 'Forward to Admin'}
                   </button>
                 </div>
               </div>
@@ -150,7 +159,7 @@ export default function LecturerAppeals() {
                           {new Date(appeal.created_at).toLocaleDateString('en-KE', { month: 'short', day: 'numeric', year: 'numeric' })}
                         </div>
                       </div>
-                      <button onClick={() => { setSelectedAppeal(appeal); setNotes(appeal.lecturer_notes || '') }}
+                      <button onClick={() => { setSelectedAppeal(appeal); setReviewStatus(appeal.status || 'under_review'); setNotes(appeal.lecturer_notes || '') }}
                         className="text-white font-semibold px-4 py-2 rounded-xl text-sm flex-shrink-0"
                         style={{ background: 'linear-gradient(135deg, #6a1b9a, #9c27b0)' }}>
                         Review

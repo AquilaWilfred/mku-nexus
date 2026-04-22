@@ -198,6 +198,20 @@ async function buildSystemPrompt(userId: string, role: UserRole): Promise<string
         ).join('\n')}`
       : ''
 
+    // Recent notifications for the student
+    const { data: myNotifications } = await supabaseAdmin
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    const notificationContext = (myNotifications || []).length > 0
+      ? `\nRECENT NOTIFICATIONS:\n${(myNotifications || []).map((n: any) =>
+          `🔔 ${n.title}: ${n.message} (${new Date(n.created_at).toLocaleDateString('en-KE')})`
+        ).join('\n')}`
+      : ''
+
     userContext = `STUDENT: ${student?.full_name} (ID: ${student?.student_id})
 Course: ${(student as any)?.course?.name || 'Not set'} | Disability: ${student?.is_disabled ? student?.disability_type : 'None'}
 ENROLLED UNITS (${enrollments?.length || 0}):
@@ -208,6 +222,7 @@ ${(enrollments || []).map((e: any) => {
 }).join('\n')}
 ${overrideContext}
 ${pollContext}
+${notificationContext}
 
 PRIVACY: You must NEVER reveal other students' personal information, grades, schedules, or details. Only answer about this student's own data.`
 
@@ -231,6 +246,20 @@ PRIVACY: You must NEVER reveal other students' personal information, grades, sch
       .in('unit_id', unitIds)
       .order('created_at', { ascending: false }).limit(10) : { data: [] }
 
+    // Recent notifications for the lecturer
+    const { data: myNotifications } = await supabaseAdmin
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    const notificationContext = (myNotifications || []).length > 0
+      ? `\nRECENT NOTIFICATIONS:\n${(myNotifications || []).map((n: any) =>
+          `🔔 ${n.title}: ${n.message} (${new Date(n.created_at).toLocaleDateString('en-KE')})`
+        ).join('\n')}`
+      : ''
+
     userContext = `LECTURER: ${lecturer?.full_name} (Staff ID: ${lecturer?.staff_id})
 MY TEACHING UNITS:
 ${(myUnits || []).map((u: any) =>
@@ -245,12 +274,27 @@ ${(myOverrides || []).map((o: any) => {
 }).join('\n') || 'None recently'}
 
 MY ACTIVE POLLS:
-${(myPolls || []).map((p: any) => `📊 [${p.unit?.code}] "${p.question}" — ${p.options?.length || 0} options, expires ${new Date(p.expires_at).toLocaleDateString('en-KE')}`).join('\n') || 'No active polls'}`
+${(myPolls || []).map((p: any) => `📊 [${p.unit?.code}] "${p.question}" — ${p.options?.length || 0} options, expires ${new Date(p.expires_at).toLocaleDateString('en-KE')}`).join('\n') || 'No active polls'}
+${notificationContext}`
 
   } else {
     // Admin gets full system overview
     const { data: pendingVenueReqs } = await supabaseAdmin.from('venue_requests').select('*, lecturer:users!venue_requests_lecturer_id_fkey(full_name), unit:units(code, name), venue:venues(room_number)').eq('status', 'pending').limit(10)
     const { data: pendingAppeals } = await supabaseAdmin.from('disability_appeals').select('*, student:users!disability_appeals_student_id_fkey(full_name), unit:units(code, name)').eq('status', 'pending').limit(10)
+
+    // Recent notifications for the admin
+    const { data: myNotifications } = await supabaseAdmin
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    const notificationContext = (myNotifications || []).length > 0
+      ? `\nRECENT NOTIFICATIONS:\n${(myNotifications || []).map((n: any) =>
+          `🔔 ${n.title}: ${n.message} (${new Date(n.created_at).toLocaleDateString('en-KE')})`
+        ).join('\n')}`
+      : ''
 
     userContext = `ADMIN: Full system access
 PENDING VENUE REQUESTS (${pendingVenueReqs?.length || 0}):
@@ -264,7 +308,8 @@ ${(activeOverrides || []).map((o: any) => {
   const unit = o.timetable?.unit
   if (o.is_cancelled) return `❌ Cancelled: ${unit?.code} on ${o.override_date} — ${o.reason}`
   return `${o.override_type === 'temporary' ? '⚡' : '🔄'} ${unit?.code}: ${o.reason} → ${o.new_venue?.name || o.new_venue?.room_number || 'TBA'}`
-}).join('\n') || 'None'}`
+}).join('\n') || 'None'}
+${notificationContext}`
   }
 
   const eventsContext = (events || []).map((e: any) =>
@@ -309,6 +354,8 @@ Buildings WITHOUT lift: SCI (Science Complex), SPORT (Sports Complex).
 
 INSTRUCTIONS:
 - Be friendly, professional, helpful. Use emojis appropriately.
+- Use appropriate verb tenses based on time: past tense for completed events, present continuous for ongoing activities, future tense for upcoming events. Make conversations feel natural and real-time.
+- Proactively mention upcoming events, recent announcements, and important notifications when they are relevant to the conversation or when the user might benefit from knowing about them.
 - For venue changes/cancellations: proactively mention them when the student asks about that unit.
 - For polls: tell students about active polls and encourage participation.
 - NEVER reveal another student's personal info, schedule, grades, or any private data.

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/authOptions'
 import { supabaseAdmin } from '@/lib/supabase'
 import bcrypt from 'bcryptjs'
+import { generateStudentRegistrationNumber } from '@/lib/registrationNumber'
 
 const VALID_ROLES = ['admin', 'lecturer', 'student', 'schedule_manager']
 
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { email, password, full_name, role, student_id, staff_id, phone, is_disabled, disability_type } = body
+    const { email, password, full_name, role, student_id, staff_id, phone, is_disabled, disability_type, courseId, yearOfStudy } = body
 
     if (!email || !password || !full_name || !role) {
       return NextResponse.json({ error: 'email, password, full_name and role are required' }, { status: 400 })
@@ -49,6 +50,24 @@ export async function POST(req: NextRequest) {
 
     if (!VALID_ROLES.includes(role)) {
       return NextResponse.json({ error: `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}` }, { status: 400 })
+    }
+
+    // For students, courseId must be provided
+    if (role === 'student' && !courseId) {
+      return NextResponse.json({ error: 'courseId is required when registering a student' }, { status: 400 })
+    }
+
+    // If student is being registered, verify course exists
+    if (role === 'student' && courseId) {
+      const { data: course, error: courseError } = await supabaseAdmin
+        .from('courses')
+        .select('id, code')
+        .eq('id', courseId)
+        .single()
+
+      if (courseError || !course) {
+        return NextResponse.json({ error: 'Course not found' }, { status: 404 })
+      }
     }
 
     const { data: existing } = await supabaseAdmin
@@ -63,22 +82,37 @@ export async function POST(req: NextRequest) {
 
     const password_hash = await bcrypt.hash(password, 12)
 
+    // Prepare user data
+    let generatedStudentId: string | null = null
+    const userData: any = {
+      email: email.toLowerCase(),
+      password_hash,
+      full_name,
+      role,
+      student_id: student_id || null,
+      staff_id: staff_id || null,
+      phone: phone || null,
+      is_disabled: is_disabled || false,
+      disability_type: disability_type || null,
+      must_change_password: true,
+      is_active: true,
+    }
+
+    // For students, generate registration number if not provided
+    if (role === 'student' && courseId) {
+      if (!student_id) {
+        // Generate registration number
+        generatedStudentId = await generateStudentRegistrationNumber(courseId, yearOfStudy || 1)
+        userData.student_id = generatedStudentId
+      }
+      userData.course_id = courseId
+      userData.year_of_study = yearOfStudy || 1
+    }
+
     const { data, error } = await supabaseAdmin
       .from('users')
-      .insert({
-        email: email.toLowerCase(),
-        password_hash,
-        full_name,
-        role,
-        student_id: student_id || null,
-        staff_id: staff_id || null,
-        phone: phone || null,
-        is_disabled: is_disabled || false,
-        disability_type: disability_type || null,
-        must_change_password: true,
-        is_active: true,
-      })
-      .select('id, email, full_name, role, created_at')
+      .insert(userData)
+      .select('id, email, full_name, role, student_id, course_id, year_of_study, created_at')
       .single()
 
     if (error) {
@@ -92,7 +126,14 @@ export async function POST(req: NextRequest) {
       throw error
     }
 
-    return NextResponse.json({ data, success: true })
+    return NextResponse.json({ 
+      data: {
+        ...data,
+        generatedStudentId,
+        message: role === 'student' ? 'Student created with auto-generated registration number' : 'User created successfully'
+      }, 
+      success: true 
+    })
   } catch (error: any) {
     console.error('POST /api/admin/users error:', error)
     return NextResponse.json({ error: error?.message || 'Failed to create user' }, { status: 500 })

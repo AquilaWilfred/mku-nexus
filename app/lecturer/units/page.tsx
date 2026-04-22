@@ -56,6 +56,7 @@ export default function LecturerUnitsPage() {
   const [tab, setTab] = useState<'my_units' | 'register'>('my_units')
   const [myUnits, setMyUnits] = useState<Unit[]>([])
   const [available, setAvailable] = useState<Unit[]>([])
+  const [scheduled, setScheduled] = useState<Unit[]>([])
   const [venues, setVenues] = useState<Venue[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [overrides, setOverrides] = useState<{ [k: string]: Override[] }>({})
@@ -105,6 +106,7 @@ export default function LecturerUnitsPage() {
     const d = await r.json()
     if (d.success) {
       setAvailable(d.available_units || [])
+      setScheduled(d.scheduled_units || [])
       setCourses(d.courses || [])
     }
   }
@@ -210,6 +212,9 @@ export default function LecturerUnitsPage() {
   const filteredAvailable = selCourse
     ? available.filter(u => (u.course_units || []).some(cu => cu.course_id === selCourse))
     : available
+  const filteredScheduled = selCourse
+    ? scheduled.filter(u => (u.course_units || []).some(cu => cu.course_id === selCourse))
+    : scheduled
 
   const selectedSlotObj = SESSION_SLOTS.find(s => s.start === selSlot)
 
@@ -422,13 +427,14 @@ export default function LecturerUnitsPage() {
                         <span className="w-6 h-6 rounded-full bg-purple-700 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">2</span>
                         <label className="nexus-label mb-0">Select Unit from {courses.find(c => c.id === selCourse)?.code} *</label>
                       </div>
-                      {filteredAvailable.length === 0 ? (
+                      {filteredAvailable.length === 0 && filteredScheduled.length === 0 ? (
                         <div className="p-4 rounded-xl text-center text-sm text-gray-400"
                           style={{ background: '#f8f9ff', border: '1px solid #e8eaf6' }}>
-                          No unassigned units available for this course this semester.
+                          No units available for this course this semester.
                         </div>
                       ) : (
                         <div className="space-y-2 max-h-56 overflow-y-auto border rounded-xl p-2" style={{ borderColor: '#e8eaf6' }}>
+                          {/* Available units */}
                           {filteredAvailable.map(u => (
                             <button key={u.id} onClick={() => setSelUnit(u.id)}
                               className="w-full p-3 rounded-xl border-2 text-left transition-all"
@@ -446,6 +452,43 @@ export default function LecturerUnitsPage() {
                               </div>
                             </button>
                           ))}
+                          
+                          {/* Scheduled units (greyed out) */}
+                          {filteredScheduled.length > 0 && (
+                            <>
+                              {filteredAvailable.length > 0 && <div className="border-t my-2"></div>}
+                              <div className="px-2 py-1.5">
+                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Already Scheduled (cannot register):</p>
+                              </div>
+                              {filteredScheduled.map(u => {
+                                const firstSlot = (u.timetable || [])[0]
+                                return (
+                                  <div key={u.id}
+                                    className="w-full p-3 rounded-xl border-2 opacity-60 cursor-not-allowed"
+                                    style={{ borderColor: '#d0d0d0', background: '#f5f5f5' }}>
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                                        style={{ background: '#999' }}>
+                                        {u.code.slice(0, 3)}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-bold text-sm text-gray-600">{u.code} — {u.name}</div>
+                                        <div className="text-xs text-gray-400">
+                                          {u.department?.name} · {u.credits} credits
+                                          {firstSlot && (
+                                            <span className="ml-2 px-2 py-0.5 rounded-full inline-block"
+                                              style={{ background: '#e0e0e0', color: '#666', fontSize: '0.7rem', fontWeight: '600' }}>
+                                              📅 {firstSlot.day_of_week} {firstSlot.start_time.slice(0, 5)}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </>
+                          )}
                         </div>
                       )}
                     </div>

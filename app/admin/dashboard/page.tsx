@@ -1,5 +1,5 @@
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/authOptions'
 import { redirect } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase'
 import Sidebar from '@/components/shared/Sidebar'
@@ -49,6 +49,10 @@ export default async function AdminDashboard() {
     total_units: totalUnits || 0,
     total_events: totalEvents || 0,
     pending_appeals: pendingAppeals || 0,
+    pending_timetable_appeals: 0,
+    pending_activations: 0,
+    deactivated_users: 0,
+    recent_logins: [],
     recent_events: recentEvents || [],
     recent_appeals: recentAppeals || [],
     enrollment_trends: enrollmentTrends,

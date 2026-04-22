@@ -3,13 +3,13 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import ProfileModal from './ProfileModal'
 
 interface NavItem { label: string; href: string; icon: string }
 
 const navConfig: Record<string, NavItem[]> = {
   student: [
     { label: 'Dashboard', href: '/student/dashboard', icon: '🏠' },
+    { label: 'My Profile', href: '/student/profile', icon: '👤' },
     { label: 'My Timetable', href: '/student/timetable', icon: '📅' },
     { label: 'My Units', href: '/student/units', icon: '📚' },
     { label: 'Materials', href: '/student/materials', icon: '📁' },
@@ -22,6 +22,7 @@ const navConfig: Record<string, NavItem[]> = {
   ],
   lecturer: [
     { label: 'Dashboard', href: '/lecturer/dashboard', icon: '🏠' },
+    { label: 'My Profile', href: '/lecturer/profile', icon: '👤' },
     { label: 'My Units', href: '/lecturer/units', icon: '📖' },
     { label: 'Upload Materials', href: '/lecturer/materials', icon: '⬆️' },
     { label: 'Forums', href: '/lecturer/forums', icon: '💬' },
@@ -35,6 +36,7 @@ const navConfig: Record<string, NavItem[]> = {
   ],
   admin: [
     { label: 'Dashboard', href: '/admin/dashboard', icon: '📊' },
+    { label: 'My Profile', href: '/admin/profile', icon: '👤' },
     { label: 'Users', href: '/admin/users', icon: '👥' },
     { label: 'Units & Timetable', href: '/admin/timetable', icon: '📅' },
     { label: 'Events', href: '/admin/events', icon: '📢' },
@@ -48,6 +50,7 @@ const navConfig: Record<string, NavItem[]> = {
   ],
   schedule_manager: [
     { label: 'Dashboard', href: '/schedule-manager/dashboard', icon: '📊' },
+    { label: 'My Profile', href: '/schedule-manager/profile', icon: '👤' },
     { label: 'Timetable Appeals', href: '/schedule-manager/appeals', icon: '📋' },
     { label: 'Manage Timetable', href: '/schedule-manager/timetable', icon: '📅' },
     { label: 'Notifications', href: '/schedule-manager/notifications', icon: '🔔' },
@@ -67,18 +70,31 @@ export default function Sidebar({ role, userName, userEmail }: SidebarProps) {
   const pathname = usePathname()
   const { data: session } = useSession()
   const navItems = navConfig[role] || navConfig.student
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
-  // Fetch profile image from API (NOT from session/JWT — it could be base64 and too large for cookie)
   const [profileImage, setProfileImage] = useState<string | null>(null)
   const [notifCount, setNotifCount] = useState(0)
+  const [isOpen, setIsOpen] = useState(true)
+  const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
     fetchProfileImage()
     fetchNotifCount()
-    // Refresh badge every 30 seconds
     const interval = setInterval(fetchNotifCount, 30000)
     return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mediaQuery = window.matchMedia('(min-width: 768px)')
+    const handleResize = (event: MediaQueryListEvent) => {
+      setIsOpen(event.matches)
+      if (!event.matches) {
+        setCollapsed(false)
+      }
+    }
+    setIsOpen(mediaQuery.matches)
+    mediaQuery.addEventListener('change', handleResize)
+    return () => mediaQuery.removeEventListener('change', handleResize)
   }, [])
 
   async function fetchProfileImage() {
@@ -99,126 +115,99 @@ export default function Sidebar({ role, userName, userEmail }: SidebarProps) {
     } catch (_) {}
   }
 
-  const color = roleColors[role] || '#1a237e'
+  const sidebarBaseClass = `fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden bg-slate-950/95 backdrop-blur-xl text-white border-r border-white/10 transition-all duration-300 ease-in-out ${collapsed ? 'md:w-20' : 'md:w-64'} bg-gradient-to-b from-slate-950 to-slate-900`
+  const sidebarVisibilityClass = isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'
+  const itemBaseClass = `nav-item flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors duration-200 ${collapsed ? 'justify-center' : ''}`
 
-  const SidebarContent = () => (
-    <aside className="nexus-sidebar w-64 flex flex-col h-full">
-      {/* Logo */}
-      <div className="p-5 border-b flex-shrink-0" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-bold text-lg" style={{ fontFamily: 'Playfair Display, serif' }}>N</span>
-          </div>
-          <div className="min-w-0">
-            <div className="text-white font-bold text-base truncate" style={{ fontFamily: 'Playfair Display, serif' }}>MKU NEXUS</div>
-            <div className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.6)' }}>{roleLabels[role] || role} Portal</div>
-          </div>
-        </div>
-      </div>
-
-      {/* User Info — click to open Profile Modal */}
+  return (
+    <>
       <button
-        className="px-4 py-3 border-b flex-shrink-0 text-left hover:bg-white/10 transition-colors w-full"
-        style={{ borderColor: 'rgba(255,255,255,0.1)' }}
-        onClick={() => setProfileOpen(true)}
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        className="fixed top-4 left-4 z-50 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white text-slate-900 shadow-lg shadow-slate-900/10 md:hidden"
+        aria-label={isOpen ? 'Close navigation' : 'Open navigation'}
       >
-        <div className="flex items-center gap-3">
+        {isOpen ? '✕' : '☰'}
+      </button>
+
+      <div
+        className={`fixed inset-0 z-40 bg-black/40 md:hidden ${isOpen ? 'block' : 'hidden'}`}
+        onClick={() => setIsOpen(false)}
+      />
+
+      <div className={`${sidebarBaseClass} ${sidebarVisibilityClass}`} style={{ minHeight: '100vh' }}>
+        <div className="flex items-center gap-3 px-4 py-4 border-b border-white/10">
+          <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-lg font-bold text-white">
+            N
+          </div>
+          <div className={`flex-1 min-w-0 ${collapsed ? 'hidden' : 'block'}`}>
+            <div className="text-white font-bold text-base truncate" style={{ fontFamily: 'Playfair Display, serif' }}>MKU NEXUS</div>
+            <div className="text-xs text-slate-300 truncate">{roleLabels[role] || role} Portal</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCollapsed((value) => !value)}
+            className="hidden rounded-full bg-white/10 p-2 text-slate-200 hover:bg-white/15 md:inline-flex"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? '→' : '←'}
+          </button>
+        </div>
+
+        <Link
+          href={`/${role}/profile`}
+          className={`px-4 py-4 border-b text-left hover:bg-white/10 transition-colors ${collapsed ? 'justify-center' : ''} flex items-center gap-3`}
+          style={{ borderColor: 'rgba(255,255,255,0.1)' }}
+        >
           {profileImage ? (
             <img
               src={profileImage}
               alt="Profile"
-              className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+              className="w-10 h-10 rounded-full object-cover flex-shrink-0"
               style={{ border: '2px solid rgba(255,255,255,0.5)' }}
             />
           ) : (
             <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
-              style={{ background: 'rgba(255,255,255,0.2)' }}
+              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+              style={{ background: 'rgba(255,255,255,0.15)' }}
             >
               {userName.charAt(0).toUpperCase()}
             </div>
           )}
-          <div className="flex-1 min-w-0">
-            <div className="text-white font-medium text-sm truncate">{userName}</div>
-            <div className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.5)' }}>
-              {userEmail} · <span className="opacity-80">Edit Profile ✏️</span>
+          {!collapsed && (
+            <div className="min-w-0">
+              <div className="text-white font-medium text-sm truncate">{userName}</div>
+              <div className="text-xs text-slate-300 truncate">{userEmail}</div>
             </div>
+          )}
+        </Link>
+
+        <nav className="flex-1 px-2 py-3 overflow-y-auto">
+          <div className="space-y-1">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`${itemBaseClass} ${pathname === item.href || pathname.startsWith(item.href + '/') ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
+              >
+                <span className="text-lg">{item.icon}</span>
+                {!collapsed && <span className="truncate text-sm">{item.label}</span>}
+              </Link>
+            ))}
           </div>
-        </div>
-      </button>
+        </nav>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-3 overflow-y-auto">
-        <div className="space-y-0.5">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setMobileOpen(false)}
-              className={`nav-item ${pathname === item.href || pathname.startsWith(item.href + '/') ? 'active' : ''}`}
-            >
-              <span className="text-base flex-shrink-0">{item.icon}</span>
-              <span className="truncate text-sm">{item.label}</span>
-            </Link>
-          ))}
+        <div className="p-3 border-t border-white/10">
+          <button
+            onClick={() => signOut({ callbackUrl: role === 'schedule_manager' ? '/schedule-manager/login' : `/${role}/login` })}
+            className={`${itemBaseClass} w-full text-left text-red-300 hover:bg-red-500/10 hover:text-red-100 ${collapsed ? 'justify-center' : ''}`}
+          >
+            <span className="text-lg">🚪</span>
+            {!collapsed && <span className="text-sm">Sign Out</span>}
+          </button>
         </div>
-      </nav>
-
-      {/* Sign Out */}
-      <div className="p-3 border-t flex-shrink-0" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-        <button
-          onClick={() => signOut({
-            callbackUrl: role === 'schedule_manager'
-              ? '/schedule-manager/login'
-              : `/${role}/login`,
-          })}
-          className="nav-item w-full text-left"
-          style={{ color: 'rgba(255,100,100,0.9)' }}
-        >
-          <span className="flex-shrink-0">🚪</span>
-          <span className="text-sm">Sign Out</span>
-        </button>
       </div>
-    </aside>
-  )
-
-  return (
-    <>
-      {/* Mobile hamburger */}
-      <button
-        className="fixed top-4 left-4 z-50 md:hidden p-2 rounded-xl text-white shadow-lg"
-        style={{ background: color }}
-        onClick={() => setMobileOpen(true)}
-      >
-        ☰
-      </button>
-
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 md:hidden"
-          onClick={() => setMobileOpen(false)}
-          style={{ background: 'rgba(0,0,0,0.5)' }}
-        >
-          <div className="h-full w-64" onClick={e => e.stopPropagation()}>
-            <SidebarContent />
-          </div>
-        </div>
-      )}
-
-      {/* Desktop */}
-      <div className="hidden md:block flex-shrink-0 h-full">
-        <SidebarContent />
-      </div>
-
-      {/* Profile Modal — refreshes profile image on close */}
-      <ProfileModal
-        isOpen={profileOpen}
-        onClose={() => {
-          setProfileOpen(false)
-          fetchProfileImage()   // Refresh avatar after save
-        }}
-      />
+      <div className={`hidden md:block flex-shrink-0 ${collapsed ? 'w-20' : 'w-64'}`} aria-hidden="true" />
     </>
   )
 }

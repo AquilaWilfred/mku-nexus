@@ -37,6 +37,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         ? `Your accessibility appeal has been approved. ${admin_notes ? `Admin note: ${admin_notes}` : ''}`
         : `Your appeal has been ${status}. ${admin_notes ? `Reason: ${admin_notes}` : 'Please contact admin for details.'}`,
       type: status === 'approved' ? 'success' : 'warning',
+      link: '/student/appeals',
+      action_type: 'appeal',
     })
 
     return NextResponse.json({ data, success: true })

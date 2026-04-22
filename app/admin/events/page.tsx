@@ -1,5 +1,5 @@
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/authOptions'
 import { redirect } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase'
 import Sidebar from '@/components/shared/Sidebar'
@@ -14,7 +14,7 @@ export default async function AdminEvents() {
 
   const [{ data: events }, { data: units }, { data: venues }] = await Promise.all([
     supabaseAdmin.from('events')
-      .select('*, creator:users!events_created_by_fkey(full_name, role), unit:units(code, name), venue:venues(room_number, name, building:buildings(name))')
+      .select('*, creator:users!events_created_by_fkey(full_name, role), unit:units!events_unit_id_fkey(code, name), target_unit:units!events_unit_id_target_fkey(code, name), venue:venues(room_number, name, building:buildings(name))')
       .order('created_at', { ascending: false })
       .limit(100),
     supabaseAdmin.from('units').select('id, code, name').eq('is_active', true).order('code'),
@@ -24,7 +24,11 @@ export default async function AdminEvents() {
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#f8f9ff' }}>
       <Sidebar role="admin" userName={session.user.name || ''} userEmail={session.user.email || ''} />
-      <AdminEventsClient events={events || []} units={units || []} venues={venues || []} />
+      <AdminEventsClient
+        events={events || []}
+        units={units || []}
+        venues={(venues || []).map(v => ({ ...v, building: Array.isArray(v.building) ? v.building[0] : v.building }))}
+      />
     </div>
   )
 }

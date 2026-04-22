@@ -1,16 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/authOptions'
 import { supabaseAdmin } from '@/lib/supabase'
-
-// Fixed 3-hour session slots — these are the ONLY valid slots
-export const SESSION_SLOTS = [
-  { label: 'Session 1 (07:00 – 10:00)', start: '07:00:00', end: '10:00:00' },
-  { label: 'Session 2 (10:00 – 13:00)', start: '10:00:00', end: '13:00:00' },
-  { label: 'Session 3 (13:00 – 16:00)', start: '13:00:00', end: '16:00:00' },
-  { label: 'Session 4 (16:00 – 19:00)', start: '16:00:00', end: '19:00:00' },
-]
-const VALID_STARTS = SESSION_SLOTS.map(s => s.start)
+import { SESSION_SLOTS, VALID_STARTS } from '@/lib/sessionSlots'
 
 // GET - return lecturer's registered units + units available for a given course
 export async function GET(req: NextRequest) {
@@ -48,7 +40,8 @@ export async function GET(req: NextRequest) {
       .select(`
         id, code, name, description, credits, semester, year, max_students,
         department:departments(name, code),
-        course_units(course_id, year_of_study, course:courses(id, code, name))
+        course_units(course_id, year_of_study, course:courses(id, code, name)),
+        timetable(id, day_of_week, start_time, end_time)
       `)
       .is('lecturer_id', null)
       .eq('semester', semester)
@@ -58,12 +51,28 @@ export async function GET(req: NextRequest) {
 
     const { data: allAvailable } = await availableQuery
 
-    // If course_id given, filter to only units linked to that course
-    let filteredAvailable = allAvailable || []
-    if (course_id) {
-      filteredAvailable = filteredAvailable.filter((u: any) =>
-        (u.course_units || []).some((cu: any) => cu.course_id === course_id)
-      )
+    // Split available into truly available and already-scheduled (with timetable but no lecturer)
+    const trulyAvailable: Array<any> = []
+    const alreadyScheduled: Array<any> = []
+
+    if (allAvailable) {
+      allAvailable.forEach((u: any) => {
+        const hasTimetable = (u.timetable || []).length > 0
+        // Filter course_units to only the selected course if provided
+        let courseUnits = u.course_units || []
+        if (course_id) {
+          courseUnits = courseUnits.filter((cu: any) => cu.course_id === course_id)
+        }
+        
+        if (courseUnits.length > 0) {  // Only include if linked to a course (and selected course if filtering)
+          const unitWithCourseUnits = { ...u, course_units: courseUnits }
+          if (hasTimetable) {
+            alreadyScheduled.push(unitWithCourseUnits)
+          } else {
+            trulyAvailable.push(unitWithCourseUnits)
+          }
+        }
+      })
     }
 
     // Get all courses for the course picker
@@ -75,7 +84,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       my_units: myUnits || [],
-      available_units: filteredAvailable,
+      available_units: trulyAvailable,
+      scheduled_units: alreadyScheduled,  // Units with timetable but no lecturer (cannot register)
       courses: courses || [],
       success: true
     })

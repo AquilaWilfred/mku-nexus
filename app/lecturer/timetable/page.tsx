@@ -140,6 +140,16 @@ export default function LecturerTimetable() {
               <p className="text-gray-400 text-xs mt-1">
                 {entries.length} sessions {showFullTimetable ? '(all lecturers)' : '(your units only)'} · Click a class to manage
               </p>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <a href="/timetable/export" target="_blank" rel="noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+                  📄 View system XML timetable
+                </a>
+                <a href="/api/timetable/export?download=true" download
+                  className="inline-flex items-center gap-2 rounded-xl bg-purple-700 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-800">
+                  ⬇️ Download XML
+                </a>
+              </div>
             </div>
             <div className="flex gap-2 items-center">
               <button onClick={() => setShowFullTimetable(false)}
