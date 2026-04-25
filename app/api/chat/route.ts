@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/authOptions'
 import { chatWithNexusAI, getChatHistory } from '@/lib/ai'
+import { supabaseAdmin } from '@/lib/supabase'
 import { UserRole } from '@/types'
 
 export async function POST(req: NextRequest) {
@@ -48,5 +49,28 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: history, success: true })
   } catch (error) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const userId = (session.user as unknown as { id: string }).id
+
+    const { error } = await supabaseAdmin
+      .from('chat_messages')
+      .delete()
+      .eq('user_id', userId)
+
+    if (error) throw error
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Failed to clear chat history:', error)
+    return NextResponse.json({ success: false, error: 'Failed to clear chat history' }, { status: 500 })
   }
 }

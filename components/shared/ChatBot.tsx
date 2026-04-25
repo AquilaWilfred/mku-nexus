@@ -112,11 +112,25 @@ function renderMarkdown(text: string): React.ReactNode[] {
 }
 
 function inlineFormat(text: string): React.ReactNode {
-  // Split on **bold**, *italic*, `code`
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g)
+  // Split on images, links, **bold**, *italic*, `code`
+  const parts = text.split(/(!\[[^\]]*\]\([^)]+\)|\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g)
   return (
     <>
       {parts.map((part, i) => {
+        if (part.startsWith('![') && part.endsWith(')')) {
+          const altMatch = part.match(/!\[([^\]]*)\]/)
+          const urlMatch = part.match(/\(([^)]+)\)/)
+          if (altMatch && urlMatch) {
+            return <img key={i} src={urlMatch[1]} alt={altMatch[1]} className="max-w-xs md:max-w-sm rounded-lg shadow-sm border border-gray-200 my-2 object-contain" />
+          }
+        }
+        if (part.startsWith('[') && part.endsWith(')')) {
+          const textMatch = part.match(/\[([^\]]+)\]/)
+          const urlMatch = part.match(/\(([^)]+)\)/)
+          if (textMatch && urlMatch) {
+            return <a key={i} href={urlMatch[1]} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium break-all">{textMatch[1]}</a>
+          }
+        }
         if (part.startsWith('**') && part.endsWith('**')) {
           return <strong key={i} className="font-bold" style={{ color: '#1a237e' }}>{part.slice(2, -2)}</strong>
         }
@@ -144,6 +158,7 @@ export default function ChatBot({ userRole, userName, floating = false }: ChatBo
   const [isOpen, setIsOpen] = useState(!floating)
   const [historyLoaded, setHistoryLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const roleGreetings: Record<string, string> = {
     student: `Hi ${userName}! 👋 I'm your Summit AI Assistant. I can help you with your class schedule, check if you have classes today, quiz you on your subjects, or answer questions about campus events and venues. What would you like to know?`,
@@ -194,7 +209,12 @@ export default function ChatBot({ userRole, userName, floating = false }: ChatBo
   }
 
   function scrollToBottom() {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      })
+    }
   }
 
   async function sendMessage() {
@@ -238,6 +258,23 @@ export default function ChatBot({ userRole, userName, floating = false }: ChatBo
     }
   }
 
+  async function clearChat() {
+    if (!window.confirm('Are you sure you want to clear your conversation history?')) return
+    
+    setMessages([{
+      id: 'greeting',
+      role: 'assistant',
+      content: roleGreetings[userRole],
+      timestamp: new Date(),
+    }])
+
+    try {
+      await fetch('/api/chat', { method: 'DELETE' })
+    } catch (e) {
+      console.error('Failed to clear backend chat history:', e)
+    }
+  }
+
   const quickPrompts: Record<string, string[]> = {
     student: ['Do I have class today?', 'What\'s my timetable?', 'Quiz me on my units', 'Any events today?'],
     lecturer: ['My teaching schedule', 'Any pending appeals?', 'Campus events today', 'Help me with course info'],
@@ -262,13 +299,23 @@ export default function ChatBot({ userRole, userName, floating = false }: ChatBo
             </div>
           </div>
         </div>
-        {floating && (
-          <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
-        )}
+        
+        <div className="flex items-center gap-1">
+          {messages.length > 1 && (
+            <button onClick={clearChat} className="p-2 text-sm text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Clear Chat History">
+              🗑️
+            </button>
+          )}
+          {floating && (
+            <button onClick={() => setIsOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 text-xl leading-none hover:bg-gray-100 rounded-lg transition-colors">
+              ×
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3" style={{ background: '#fafbff' }}>
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 flex flex-col gap-3" style={{ background: '#fafbff' }}>
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -330,7 +377,12 @@ export default function ChatBot({ userRole, userName, floating = false }: ChatBo
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                sendMessage()
+              }
+            }}
             placeholder="Ask anything about your schedule, events, campus..."
             className="nexus-input text-sm py-2.5"
             style={{ fontSize: '0.85rem' }}
@@ -373,7 +425,7 @@ export default function ChatBot({ userRole, userName, floating = false }: ChatBo
   }
 
   return (
-    <div className="nexus-card flex flex-col" style={{ height: '100%', minHeight: '500px' }}>
+    <div className="nexus-card flex flex-col" style={{ height: 'calc(100vh - 160px)', minHeight: '500px' }}>
       {chatContent}
     </div>
   )
