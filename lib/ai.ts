@@ -387,6 +387,7 @@ ${notificationContext}`
     // Admin gets full system overview
     const { data: pendingVenueReqs } = await supabaseAdmin.from('venue_requests').select('*, lecturer:users!venue_requests_lecturer_id_fkey(full_name), unit:units(code, name), venue:venues(room_number)').eq('status', 'pending').limit(10)
     const { data: pendingAppeals } = await supabaseAdmin.from('disability_appeals').select('*, student:users!disability_appeals_student_id_fkey(full_name), unit:units(code, name)').eq('status', 'pending').limit(10)
+    const { data: venueInventory } = await supabaseAdmin.from('venues').select('id, room_number, name, capacity, floor_number, is_accessible, has_projector, has_ac, building:buildings(name, code, has_lift, accessibility_notes)').order('room_number')
 
     // Recent notifications for the admin
     const { data: myNotifications } = await supabaseAdmin
@@ -415,6 +416,8 @@ ${(activeOverrides || []).map((o: any) => {
   if (o.is_cancelled) return `❌ Cancelled: ${unit?.code} on ${o.override_date} — ${o.reason}`
   return `${o.override_type === 'temporary' ? '⚡' : '🔄'} ${unit?.code}: ${o.reason} → ${o.new_venue?.name || o.new_venue?.room_number || 'TBA'}`
 }).join('\n') || 'None'}
+VENUE INVENTORY (${venueInventory?.length || 0}):
+${(venueInventory || []).map((v: any) => `• ${v.room_number}${v.name ? ` (${v.name})` : ''} | ${v.building?.name || 'Unknown building'} | Floor ${v.floor_number} | Cap ${v.capacity} | Accessible: ${v.is_accessible ? 'Yes' : 'No'} | Projector: ${v.has_projector ? 'Yes' : 'No'} | AC: ${v.has_ac ? 'Yes' : 'No'} | Building Lift: ${v.building?.has_lift ? 'Yes' : 'No'}${v.building?.accessibility_notes ? ` | Notes: ${v.building.accessibility_notes}` : ''}`).join('\n')}
 ${notificationContext}`
   }
 
@@ -479,6 +482,7 @@ INSTRUCTIONS:
 - EMPATHY: Validate the user's questions. If they are stressed about exams, offer brief encouragement. Enthusiastically congratulate them on passed units!
 - Use appropriate verb tenses based on time: past tense for completed events, present continuous for ongoing activities, future tense for upcoming events. Make conversations feel natural and real-time.
 - For venue changes/cancellations: ONLY mention them when the user specifically asks about that unit or their timetable.
+- For venue assignment and requests in Admin mode: use the full venue inventory and pending disability appeals to make recommendations. Prioritize rooms that are marked accessible, avoid assigning disabled students to upper floors without lift access, match capacity to expected group size, and prefer rooms with required equipment (projector, AC) when needed. Recommend a primary venue and at least one backup when possible, and explain your reasoning in bullet points.
 - For polls: ONLY tell users about active polls if they ask.
 - For events:
   1. CONTEXT & FOLLOW-UPS: If the user asks for details about an event, provide the full 'Description'. IMPORTANT: If there is an 'Attached File' and IsImage=true, display the image directly on a new line using exact Markdown: !Image Name. DO NOT write the word "Attachment". For documents, output: Download File Name. After providing the details, warmly ask if there is anything else you can help them with today.

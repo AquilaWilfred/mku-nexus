@@ -67,7 +67,7 @@ export default function AdminVenuesClient({ buildings, venueRequests: initialReq
             <h1 className="text-3xl font-bold" style={{ fontFamily: 'Playfair Display, serif', color: '#2e7d32' }}>
               🏛️ Buildings & Venues
             </h1>
-            <p className="text-gray-500 mt-1">Manage campus venues and approve lecturer venue requests</p>
+            <p className="text-gray-500 mt-1">Manage campus venues and approve lecturer venue requests. For AI-assisted venue assignment, use Admin Chat and ask the assistant to consider disability, capacity, accessibility, and equipment.</p>
           </div>
           {pendingCount > 0 && (
             <div className="px-4 py-2 rounded-xl text-white font-bold text-sm"

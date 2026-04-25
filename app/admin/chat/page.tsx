@@ -26,7 +26,7 @@ export default async function AdminChat() {
             {[
               { icon: '📊', tip: 'Ask "Give me a system overview" for stats' },
               { icon: '♿', tip: 'Ask "Summarize pending appeals"' },
-              { icon: '🏛️', tip: 'Ask about building accessibility' },
+              { icon: '🏛️', tip: 'Ask "Help me assign the best venue considering disability and equipment"' },
               { icon: '🧠', tip: 'Ask about the current AI training data' },
             ].map(t => (
               <div key={t.tip} className="nexus-card p-4" style={{ borderTop: '3px solid #2e7d32' }}>

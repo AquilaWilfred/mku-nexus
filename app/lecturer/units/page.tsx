@@ -136,25 +136,30 @@ export default function LecturerUnitsPage() {
 
   async function registerUnit() {
     if (!selUnit) { toast.error('Please select a unit'); return }
-    if (!selVenue) { toast.error('Please select a venue'); return }
+    const hasExistingSchedule = selectedUnitHasSchedule
+    if (!hasExistingSchedule && !selVenue) { toast.error('Please select a venue'); return }
+    if (!hasExistingSchedule && !selSlot) { toast.error('Please choose a session slot'); return }
     setRegistering(true)
+    const payload: any = {
+      unit_id: selUnit,
+      session_type: selType,
+      semester: 'Semester 1',
+      year: 2026,
+    }
+    if (!hasExistingSchedule) {
+      payload.venue_id = selVenue
+      payload.day_of_week = selDay
+      payload.slot_start = selSlot
+    }
     const r = await fetch('/api/lecturer/register-units', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        unit_id: selUnit,
-        venue_id: selVenue,
-        day_of_week: selDay,
-        slot_start: selSlot,
-        session_type: selType,
-        semester: 'Semester 1',
-        year: 2026
-      })
+      body: JSON.stringify(payload)
     })
     const d = await r.json()
     setRegistering(false)
     if (d.success) {
-      toast.success('✅ Unit registered! Timetable slot created.')
+      toast.success(d.message || '✅ Unit registered! Timetable slot created.')
       setSelUnit(''); setSelVenue(''); setSelCourse('')
       setTab('my_units')
       fetchMyUnits()
@@ -253,6 +258,8 @@ export default function LecturerUnitsPage() {
     ? scheduled.filter(u => (u.course_units || []).some(cu => cu.course_id === selCourse))
     : scheduled
 
+  const selectedUnit = [...filteredAvailable, ...filteredScheduled].find(u => u.id === selUnit)
+  const selectedUnitHasSchedule = selectedUnit?.timetable?.length > 0
   const selectedSlotObj = SESSION_SLOTS.find(s => s.start === selSlot)
 
   return (
@@ -503,33 +510,33 @@ export default function LecturerUnitsPage() {
                             <>
                               {filteredAvailable.length > 0 && <div className="border-t my-2"></div>}
                               <div className="px-2 py-1.5">
-                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Already Scheduled (cannot register):</p>
+                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Unassigned units with existing schedule (select to claim):</p>
                               </div>
                               {filteredScheduled.map(u => {
-                                const firstSlot = (u.timetable || [])[0]
+                                const scheduleLabel = (u.timetable || []).map(t => `${t.day_of_week} ${t.start_time.slice(0, 5)}`).join(', ')
                                 return (
-                                  <div key={u.id}
-                                    className="w-full p-3 rounded-xl border-2 opacity-60 cursor-not-allowed"
-                                    style={{ borderColor: '#d0d0d0', background: '#f5f5f5' }}>
+                                  <button key={u.id} onClick={() => setSelUnit(u.id)}
+                                    className="w-full p-3 rounded-xl border-2 text-left transition-all"
+                                    style={{ borderColor: selUnit === u.id ? '#6a1b9a' : '#e0e0ef', background: selUnit === u.id ? '#f3e5f5' : '#f8f8f8' }}>
                                     <div className="flex items-center gap-3">
                                       <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                                        style={{ background: '#999' }}>
+                                        style={{ background: selUnit === u.id ? '#6a1b9a' : '#999' }}>
                                         {u.code.slice(0, 3)}
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <div className="font-bold text-sm text-gray-600">{u.code} — {u.name}</div>
+                                        <div className="font-bold text-sm" style={{ color: '#6a1b9a' }}>{u.code} — {u.name}</div>
                                         <div className="text-xs text-gray-400">
                                           {u.department?.name} · {u.credits} credits
-                                          {firstSlot && (
+                                          {scheduleLabel && (
                                             <span className="ml-2 px-2 py-0.5 rounded-full inline-block"
                                               style={{ background: '#e0e0e0', color: '#666', fontSize: '0.7rem', fontWeight: '600' }}>
-                                              📅 {firstSlot.day_of_week} {firstSlot.start_time.slice(0, 5)}
+                                              📅 {scheduleLabel}
                                             </span>
                                           )}
                                         </div>
                                       </div>
                                     </div>
-                                  </div>
+                                  </button>
                                 )
                               })}
                             </>
@@ -539,8 +546,8 @@ export default function LecturerUnitsPage() {
                     </div>
                   )}
 
-                  {/* Step 3: Day + Slot + Type (only show after unit selected) */}
-                  {selUnit && (
+                  {/* Step 3: Day + Slot + Type (only show after unit selected and no existing schedule) */}
+                  {selUnit && !selectedUnitHasSchedule && (
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <span className="w-6 h-6 rounded-full bg-purple-700 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">3</span>
@@ -577,8 +584,19 @@ export default function LecturerUnitsPage() {
                     </div>
                   )}
 
+                  {selectedUnitHasSchedule && selUnit && (
+                    <div className="p-4 rounded-xl text-sm" style={{ background: '#e8f4ff', border: '1px solid #90caf9' }}>
+                      <div className="font-bold text-sm mb-2" style={{ color: '#1565c0' }}>📅 Existing schedule detected</div>
+                      <div className="text-xs text-gray-700 space-y-2">
+                        <div><strong>Unit:</strong> {selectedUnit?.code} — {selectedUnit?.name}</div>
+                        <div><strong>Schedule:</strong> {(selectedUnit?.timetable || []).map(t => `${t.day_of_week} ${t.start_time.slice(0,5)} - ${t.end_time.slice(0,5)}`).join(', ')}</div>
+                        <div><strong>Note:</strong> This unit already has a scheduled slot. Registering it will assign it to you and keep the existing timetable.</div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Step 4: Venue (only show after slot selected) */}
-                  {selUnit && selSlot && (
+                  {selUnit && !selectedUnitHasSchedule && selSlot && (
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <span className="w-6 h-6 rounded-full bg-purple-700 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">4</span>
@@ -610,23 +628,29 @@ export default function LecturerUnitsPage() {
                   )}
 
                   {/* Summary before registering */}
-                  {selUnit && selVenue && selSlot && (
+                  {selUnit && (!selectedUnitHasSchedule ? selVenue && selSlot : true) && (
                     <div className="p-4 rounded-xl text-sm" style={{ background: '#f3e5f5', border: '2px solid #6a1b9a' }}>
                       <div className="font-bold text-sm mb-2" style={{ color: '#6a1b9a' }}>📋 Registration Summary</div>
                       <div className="space-y-1 text-xs text-gray-700">
-                        <div><strong>Unit:</strong> {available.find(u => u.id === selUnit)?.code} — {available.find(u => u.id === selUnit)?.name}</div>
-                        <div><strong>Day:</strong> {selDay} &nbsp;|&nbsp; <strong>Slot:</strong> {SESSION_SLOTS.find(s => s.start === selSlot)?.display}</div>
-                        <div><strong>Venue:</strong> {venues.find(v => v.id === selVenue)?.room_number} — {venues.find(v => v.id === selVenue)?.building?.name}</div>
+                        <div><strong>Unit:</strong> {selectedUnit?.code} — {selectedUnit?.name}</div>
+                        {!selectedUnitHasSchedule ? (
+                          <>
+                            <div><strong>Day:</strong> {selDay} &nbsp;|&nbsp; <strong>Slot:</strong> {SESSION_SLOTS.find(s => s.start === selSlot)?.display}</div>
+                            <div><strong>Venue:</strong> {venues.find(v => v.id === selVenue)?.room_number} — {venues.find(v => v.id === selVenue)?.building?.name}</div>
+                          </>
+                        ) : (
+                          <div><strong>Schedule:</strong> {(selectedUnit?.timetable || []).map(t => `${t.day_of_week} ${t.start_time.slice(0,5)} - ${t.end_time.slice(0,5)}`).join(', ')}</div>
+                        )}
                         <div><strong>Type:</strong> {selType}</div>
                       </div>
                       <p className="text-xs text-gray-500 mt-2 italic">⚠️ Once registered this slot is locked. Use "Report Change" to request adjustments.</p>
                     </div>
                   )}
 
-                  <button onClick={registerUnit} disabled={registering || !selUnit || !selVenue || !selSlot}
+                  <button onClick={registerUnit} disabled={registering || !selUnit || (!selectedUnitHasSchedule && (!selVenue || !selSlot))}
                     className="w-full py-3 rounded-xl text-white font-bold disabled:opacity-50"
                     style={{ background: 'linear-gradient(135deg,#6a1b9a,#9c27b0)' }}>
-                    {registering ? '⏳ Registering...' : '📅 Confirm Registration & Create Timetable →'}
+                    {registering ? '⏳ Registering...' : selectedUnitHasSchedule ? '📌 Claim Unit with Existing Schedule →' : '📅 Confirm Registration & Create Timetable →'}
                   </button>
                 </div>
               </div>
