@@ -57,16 +57,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'courseId is required when registering a student' }, { status: 400 })
     }
 
-    // If student is being registered, verify course exists
+    // If student is being registered, verify unit exists
     if (role === 'student' && courseId) {
-      const { data: course, error: courseError } = await supabaseAdmin
-        .from('courses')
+      const { data: unit, error: unitError } = await supabaseAdmin
+        .from('units')
         .select('id, code')
         .eq('id', courseId)
         .single()
 
-      if (courseError || !course) {
-        return NextResponse.json({ error: 'Course not found' }, { status: 404 })
+      if (unitError || !unit) {
+        return NextResponse.json({ error: 'Unit not found' }, { status: 404 })
       }
     }
 

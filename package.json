@@ -23,14 +23,12 @@
     "pdf-parse": "^2.4.5",
     "react": "^18",
     "react-dom": "^18",
-    "react-dropzone": "^14.2.3",
     "react-hot-toast": "^2.4.1",
     "react-markdown": "^9.0.1",
     "recharts": "^2.12.7",
     "resend": "^6.12.2",
     "tailwind-merge": "^2.3.0",
-    "xlsx": "^0.18.5",
-    "xml2js": "^0.6.2"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import SMSidebar from '@/components/shared/SMSidebar'
+import Sidebar from '@/components/shared/Sidebar'
 import DocumentPreview from '@/components/shared/DocumentPreview'
 import toast from 'react-hot-toast'
 
@@ -117,14 +117,14 @@ export default function SMTimetable() {
 
   if (loading) return (
     <div className="flex h-screen" style={{ background: '#f0f4ff' }}>
-      <SMSidebar userName={user?.name || ''} userEmail={user?.email || ''} />
+      <Sidebar role="schedule_manager" userName={user?.name || ''} userEmail={user?.email || ''} />
       <main className="flex-1 flex items-center justify-center text-gray-400">Loading timetable...</main>
     </div>
   )
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#f0f4ff' }}>
-      <SMSidebar userName={user?.name || ''} userEmail={user?.email || ''} />
+      <Sidebar role="schedule_manager" userName={user?.name || ''} userEmail={user?.email || ''} />
       <main className="flex-1 overflow-y-auto p-4 md:p-8">
         <div className="mb-6">
           <h1 className="text-2xl font-bold" style={{ fontFamily: 'Playfair Display, serif', color: '#0d47a1' }}>

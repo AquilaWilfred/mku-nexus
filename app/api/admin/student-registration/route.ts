@@ -48,15 +48,15 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    // Verify course exists
-    const { data: course, error: courseError } = await supabaseAdmin
-      .from('courses')
+    // Verify unit exists
+    const { data: unit, error: unitError } = await supabaseAdmin
+      .from('units')
       .select('id, code, name')
       .eq('id', courseId)
       .single()
 
-    if (courseError || !course) {
-      return NextResponse.json({ error: 'Course not found' }, { status: 404 })
+    if (unitError || !unit) {
+      return NextResponse.json({ error: 'Unit not found' }, { status: 404 })
     }
 
     // Generate registration number
@@ -115,18 +115,18 @@ export async function GET(req: NextRequest) {
       }, { status: 400 })
     }
 
-    // Verify course exists
-    const { data: course, error: courseError } = await supabaseAdmin
-      .from('courses')
+    // Verify unit exists
+    const { data: unit, error: unitError } = await supabaseAdmin
+      .from('units')
       .select('id, code, name, description')
       .eq('id', courseId)
       .single()
 
-    if (courseError || !course) {
-      return NextResponse.json({ error: 'Course not found' }, { status: 404 })
+    if (unitError || !unit) {
+      return NextResponse.json({ error: 'Unit not found' }, { status: 404 })
     }
 
-    // Count students already registered for this course
+    // Count students already registered for this unit
     const { data: registeredStudents, error: countError } = await supabaseAdmin
       .from('users')
       .select('id', { count: 'exact' })

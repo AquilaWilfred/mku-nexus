@@ -34,15 +34,15 @@ export async function GET(req: NextRequest) {
 
     if (error) throw error
     
-    // For students, fetch course information
+    // For students, fetch unit information
     let courseInfo = null
     if (data?.course_id) {
-      const { data: course } = await supabaseAdmin
-        .from('courses')
+      const { data: unit } = await supabaseAdmin
+        .from('units')
         .select('id, code, name, description')
         .eq('id', data.course_id)
         .single()
-      courseInfo = course
+      courseInfo = unit
     }
 
     return NextResponse.json({ 

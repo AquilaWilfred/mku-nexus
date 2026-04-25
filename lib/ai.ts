@@ -241,7 +241,7 @@ async function buildSystemPrompt(userId: string, role: UserRole): Promise<string
   let userContext = ''
 
   if (role === 'student') {
-    const { data: student } = await supabaseAdmin.from('users').select('*, course:courses(name, code)').eq('id', userId).single()
+    const { data: student } = await supabaseAdmin.from('users').select('*').eq('id', userId).single()
     const { data: enrollments } = await supabaseAdmin
       .from('enrollments')
       .select(`*, unit:units(*, lecturer:users!units_lecturer_id_fkey(full_name, email), timetable(*, venue:venues(room_number, name, floor_number, is_accessible, building:buildings(name, code, has_lift, accessibility_notes))))`)

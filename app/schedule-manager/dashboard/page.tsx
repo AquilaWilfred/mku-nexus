@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import SMSidebar from '@/components/shared/SMSidebar'
+import Sidebar from '@/components/shared/Sidebar'
 import Link from 'next/link'
 
 export default function SMDashboard() {
@@ -41,7 +41,7 @@ export default function SMDashboard() {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#f0f4ff' }}>
-      <SMSidebar userName={user?.name || ''} userEmail={user?.email || ''} />
+      <Sidebar role="schedule_manager" userName={user?.name || ''} userEmail={user?.email || ''} />
       <main className="flex-1 overflow-y-auto p-6 md:p-8">
         <div className="mb-6">
           <h1 className="text-2xl md:text-3xl font-bold" style={{ fontFamily: 'Playfair Display, serif', color: '#0d47a1' }}>

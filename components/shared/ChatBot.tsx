@@ -54,7 +54,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
     if (numMatch) {
       elements.push(
         <div key={key++} className="flex gap-2 mb-1">
-          <span className="font-bold text-xs mt-0.5 flex-shrink-0 w-4 text-right" style={{ color: '#1a237e' }}>
+          <span className="font-bold text-xs mt-0.5 flex-shrink-0 w-4 text-right text-navy">
             {numMatch[1]}.
           </span>
           <span className="text-sm leading-relaxed">{inlineFormat(numMatch[2])}</span>
@@ -68,7 +68,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
     if (bulletMatch && !line.startsWith('**')) {
       elements.push(
         <div key={key++} className="flex gap-2 mb-1">
-          <span className="text-xs mt-1 flex-shrink-0" style={{ color: '#6a1b9a' }}>▪</span>
+          <span className="text-xs mt-1 flex-shrink-0 text-purple">▪</span>
           <span className="text-sm leading-relaxed">{inlineFormat(bulletMatch[1])}</span>
         </div>
       )
@@ -78,7 +78,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
     // Heading: line ending with ":" that is short and bold-like
     if (line.match(/^[A-Z][^.!?\n]{2,40}:$/) && !line.includes(' - ')) {
       elements.push(
-        <p key={key++} className="font-bold text-sm mt-2 mb-1" style={{ color: '#1a237e' }}>
+        <p key={key++} className="font-bold text-sm mt-2 mb-1 text-navy">
           {line}
         </p>
       )
@@ -99,8 +99,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
       <div key={key++} className="mt-3 pt-2 border-t border-gray-200/60 flex flex-wrap gap-1.5 items-center">
         <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Sources:</span>
         {sources.map((sourceTitle, idx) => (
-          <span key={idx} className="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1"
-            style={{ background: '#e8eaf6', color: '#1a237e', border: '1px solid #c5cae9' }}>
+          <span key={idx} className="source-badge text-[10px]">
             📄 {sourceTitle}
           </span>
         ))}
@@ -132,15 +131,14 @@ function inlineFormat(text: string): React.ReactNode {
           }
         }
         if (part.startsWith('**') && part.endsWith('**')) {
-          return <strong key={i} className="font-bold" style={{ color: '#1a237e' }}>{part.slice(2, -2)}</strong>
+          return <strong key={i} className="font-bold text-navy">{part.slice(2, -2)}</strong>
         }
         if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
           return <em key={i} className="italic">{part.slice(1, -1)}</em>
         }
         if (part.startsWith('`') && part.endsWith('`')) {
           return (
-            <code key={i} className="px-1.5 py-0.5 rounded text-xs font-mono"
-              style={{ background: '#e8eaf6', color: '#1a237e' }}>
+            <code key={i} className="code-badge px-1.5 py-0.5 rounded text-xs font-mono">
               {part.slice(1, -1)}
             </code>
           )
@@ -285,14 +283,13 @@ export default function ChatBot({ userRole, userName, floating = false }: ChatBo
   const chatContent = (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: '#e0e0ef' }}>
+      <div className="flex items-center justify-between p-4 border-b border-navy-light/20">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold"
-            style={{ background: 'linear-gradient(135deg, #1a237e, #6a1b9a)' }}>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold bg-gradient-to-r from-navy to-purple">
             AI
           </div>
           <div>
-            <div className="font-semibold text-sm" style={{ color: '#1a237e' }}>Summit AI Assistant</div>
+            <div className="font-semibold text-sm text-navy">Summit AI Assistant</div>
             <div className="flex items-center gap-1.5 text-xs text-gray-500">
               <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
               Online · Real-time data
@@ -315,15 +312,14 @@ export default function ChatBot({ userRole, userName, floating = false }: ChatBo
       </div>
 
       {/* Messages */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 flex flex-col gap-3" style={{ background: '#fafbff' }}>
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 bg-[#fafbff]">
         {messages.map((msg) => (
           <div
             key={msg.id}
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
           >
             {msg.role === 'assistant' && (
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs mr-2 mt-1 flex-shrink-0"
-                style={{ background: 'linear-gradient(135deg, #1a237e, #6a1b9a)' }}>
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs mr-2 mt-1 flex-shrink-0 bg-gradient-to-r from-navy to-purple">
                 AI
               </div>
             )}
@@ -340,14 +336,13 @@ export default function ChatBot({ userRole, userName, floating = false }: ChatBo
 
         {isLoading && (
           <div className="flex justify-start">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs mr-2 mt-1"
-              style={{ background: 'linear-gradient(135deg, #1a237e, #6a1b9a)' }}>
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs mr-2 mt-1 bg-gradient-to-r from-navy to-purple">
               AI
             </div>
             <div className="chat-bubble-ai flex items-center gap-1.5 py-3">
-              <div className="typing-dot"></div>
-              <div className="typing-dot"></div>
-              <div className="typing-dot"></div>
+              <div className="typing-dot bg-navy"></div>
+              <div className="typing-dot bg-navy"></div>
+              <div className="typing-dot bg-navy"></div>
             </div>
           </div>
         )}
@@ -361,8 +356,7 @@ export default function ChatBot({ userRole, userName, floating = false }: ChatBo
             <button
               key={p}
               onClick={() => { setInput(p); }}
-              className="text-xs px-3 py-1.5 rounded-full border transition-colors"
-              style={{ borderColor: '#c5cae9', color: '#1a237e', background: '#f0f2ff' }}
+              className="text-xs px-3 py-1.5 rounded-full border border-navy-light text-navy bg-blue-50 transition-colors hover:bg-blue-100"
             >
               {p}
             </button>
@@ -371,7 +365,7 @@ export default function ChatBot({ userRole, userName, floating = false }: ChatBo
       )}
 
       {/* Input */}
-      <div className="p-4 border-t" style={{ borderColor: '#e0e0ef', background: 'white' }}>
+      <div className="p-4 border-t border-navy-light/20 bg-white">
         <div className="flex gap-2">
           <input
             type="text"
@@ -384,14 +378,12 @@ export default function ChatBot({ userRole, userName, floating = false }: ChatBo
               }
             }}
             placeholder="Ask anything about your schedule, events, campus..."
-            className="nexus-input text-sm py-2.5"
-            style={{ fontSize: '0.85rem' }}
+          className="nexus-input text-[0.85rem] py-2.5"
           />
           <button
             onClick={sendMessage}
             disabled={!input.trim() || isLoading}
-            className="btn-primary px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ borderRadius: '10px', minWidth: '48px' }}
+          className="btn-primary px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed rounded-[10px] min-w-[48px]"
           >
             ↗
           </button>
@@ -407,16 +399,14 @@ export default function ChatBot({ userRole, userName, floating = false }: ChatBo
         {!isOpen && (
           <button
             onClick={() => setIsOpen(true)}
-            className="fixed bottom-6 right-6 w-14 h-14 rounded-full text-white shadow-lg z-50 flex items-center justify-center text-xl transition-transform hover:scale-110"
-            style={{ background: 'linear-gradient(135deg, #1a237e, #6a1b9a)', boxShadow: '0 4px 24px rgba(26,35,126,0.4)' }}
+            className="fixed bottom-6 right-6 w-14 h-14 rounded-full text-white shadow-[0_4px_24px_rgba(26,35,126,0.4)] z-50 flex items-center justify-center text-xl transition-transform hover:scale-110 bg-gradient-to-r from-navy to-purple"
           >
             🤖
           </button>
         )}
 
         {isOpen && (
-          <div className="fixed bottom-6 right-6 z-50 nexus-card"
-            style={{ width: '380px', height: '520px', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 48px rgba(26,35,126,0.2)' }}>
+          <div className="fixed bottom-6 right-6 z-50 nexus-card flex flex-col w-[380px] h-[520px] shadow-[0_8px_48px_rgba(26,35,126,0.2)]">
             {chatContent}
           </div>
         )}
@@ -425,7 +415,7 @@ export default function ChatBot({ userRole, userName, floating = false }: ChatBo
   }
 
   return (
-    <div className="nexus-card flex flex-col" style={{ height: 'calc(100vh - 160px)', minHeight: '500px' }}>
+    <div className="nexus-card flex flex-col h-[calc(100vh-160px)] min-h-[500px]">
       {chatContent}
     </div>
   )

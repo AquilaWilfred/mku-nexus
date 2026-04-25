@@ -265,7 +265,7 @@ export default function Sidebar({ role, userName, userEmail }: SidebarProps) {
                       const earlierNotifs = topNotifs.filter(n => new Date(n.created_at).toDateString() !== new Date().toDateString());
 
                       const renderNotif = (n: any) => (
-                        <Link key={n.id} href={n.link || `/${role}/notifications`} onClick={() => setShowNotifDropdown(false)} className={`block p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors ${!n.is_read ? 'bg-blue-50/30' : ''}`}>
+                        <Link key={n.id} href={n.link || `/${role === 'schedule_manager' ? 'schedule-manager' : role}/notifications`} onClick={() => setShowNotifDropdown(false)} className={`block p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors ${!n.is_read ? 'bg-blue-50/30' : ''}`}>
                           <div className="flex justify-between items-start mb-1 gap-2">
                             <h4 className={`text-xs ${!n.is_read ? 'font-bold text-blue-900' : 'font-semibold text-slate-700'}`}>{n.title}</h4>
                             {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-600 mt-1 flex-shrink-0"></span>}
@@ -295,7 +295,7 @@ export default function Sidebar({ role, userName, userEmail }: SidebarProps) {
                   )}
                 </div>
                 <div className="p-3 border-t border-slate-100 text-center bg-slate-50 hover:bg-slate-100 transition-colors">
-                  <Link href={`/${role}/notifications`} onClick={() => setShowNotifDropdown(false)} className="text-xs font-bold text-blue-600 block">
+                  <Link href={`/${role === 'schedule_manager' ? 'schedule-manager' : role}/notifications`} onClick={() => setShowNotifDropdown(false)} className="text-xs font-bold text-blue-600 block">
                     View All Notifications →
                   </Link>
                 </div>

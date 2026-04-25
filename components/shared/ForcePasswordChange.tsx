@@ -29,8 +29,8 @@ export default function ForcePasswordChange({ userRole }: Props) {
       if (data.success) {
         setDone(true)
         toast.success('✅ Password changed! Signing you in again...')
-        // Sign out and redirect to login so JWT is refreshed without must_change_password
-        setTimeout(() => signOut({ callbackUrl: `/${userRole}/login` }), 1800)
+        const loginPath = userRole === 'schedule_manager' ? '/schedule-manager/login' : `/${userRole}/login`
+        setTimeout(() => signOut({ callbackUrl: loginPath }), 1800)
       } else {
         toast.error(data.error || 'Failed to change password')
       }

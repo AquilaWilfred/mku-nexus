@@ -8,14 +8,14 @@ export async function GET() {
     const session = await getServerSession(authOptions)
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const { data, error } = await supabaseAdmin
-      .from('courses')
+      .from('units')
       .select('*, department:departments(name, code)')
       .eq('is_active', true)
       .order('name')
     if (error) throw error
     return NextResponse.json({ data: data || [], success: true })
   } catch (e) {
-    return NextResponse.json({ error: 'Failed to fetch courses' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to fetch units' }, { status: 500 })
   }
 }
 
