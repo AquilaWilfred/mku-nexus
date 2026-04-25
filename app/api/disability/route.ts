@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/authOptions'
 import { supabaseAdmin } from '@/lib/supabase'
 import { UserRole } from '@/types'
 
@@ -12,29 +12,45 @@ export async function GET(req: NextRequest) {
     const userId = (session.user as unknown as { id: string }).id
     const role = (session.user as unknown as { role: UserRole }).role
 
-    let query = supabaseAdmin
-      .from('disability_appeals')
-      .select(`
-        *,
-        student:users!disability_appeals_student_id_fkey(full_name, email, student_id),
-        unit:units(code, name),
-        current_venue:venues!disability_appeals_current_venue_id_fkey(room_number, name, building:buildings(name)),
-        requested_venue:venues!disability_appeals_requested_venue_id_fkey(room_number, name, building:buildings(name))
-      `)
-      .order('created_at', { ascending: false })
+    let query
 
     if (role === 'student') {
-      query = query.eq('student_id', userId)
+      query = supabaseAdmin
+        .from('disability_appeals')
+        .select(`
+          *,
+          student:users!disability_appeals_student_id_fkey(full_name, email, student_id),
+          unit:units(code, name),
+          current_venue:venues!disability_appeals_current_venue_id_fkey(room_number, name, building:buildings(name)),
+          requested_venue:venues!disability_appeals_requested_venue_id_fkey(room_number, name, building:buildings(name))
+        `)
+        .eq('student_id', userId)
+        .order('created_at', { ascending: false })
     } else if (role === 'lecturer') {
-      // Get appeals for lecturer's units
-      const { data: units } = await supabaseAdmin
-        .from('units')
-        .select('id')
-        .eq('lecturer_id', userId)
-      const unitIds = units?.map(u => u.id) || []
-      if (unitIds.length > 0) {
-        query = query.in('unit_id', unitIds)
-      }
+      // Use inner join to ensure lecturer only sees appeals for their units
+      query = supabaseAdmin
+        .from('disability_appeals')
+        .select(`
+          *,
+          student:users!disability_appeals_student_id_fkey(full_name, email, student_id),
+          unit:units!inner(code, name, lecturer_id),
+          current_venue:venues!disability_appeals_current_venue_id_fkey(room_number, name, building:buildings(name)),
+          requested_venue:venues!disability_appeals_requested_venue_id_fkey(room_number, name, building:buildings(name))
+        `)
+        .eq('unit.lecturer_id', userId)
+        .order('created_at', { ascending: false })
+    } else {
+      // Admin and others see all
+      query = supabaseAdmin
+        .from('disability_appeals')
+        .select(`
+          *,
+          student:users!disability_appeals_student_id_fkey(full_name, email, student_id),
+          unit:units(code, name),
+          current_venue:venues!disability_appeals_current_venue_id_fkey(room_number, name, building:buildings(name)),
+          requested_venue:venues!disability_appeals_requested_venue_id_fkey(room_number, name, building:buildings(name))
+        `)
+        .order('created_at', { ascending: false })
     }
 
     const { data, error } = await query

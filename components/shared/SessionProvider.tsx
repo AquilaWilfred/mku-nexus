@@ -12,7 +12,18 @@ function PasswordGuard({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  if (!mounted || status === 'loading') return <>{children}</>
+  // Show a seamless, ultra-fast global loader while credentials are confirmed
+  // This completely stops the "tacky" UI flickering and layout shifts!
+  if (!mounted || status === 'loading') {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center animate-pulse">
+          <div className="text-4xl mb-3">⏳</div>
+          <div className="text-sm font-bold text-slate-400 tracking-widest uppercase">Authenticating...</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>

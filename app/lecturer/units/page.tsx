@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 interface Unit {
   id: string; code: string; name: string; description?: string; credits: number
   semester: string; year: number; max_students: number
+  enrolled_count?: number
   department?: { name: string; code: string }
   course_units?: { course_id: string; year_of_study?: number; course?: { id: string; code: string; name: string } }[]
   timetable?: TimetableEntry[]
@@ -81,6 +82,11 @@ export default function LecturerUnitsPage() {
   const [ovReason, setOvReason] = useState('')
   const [ovCancelled, setOvCancelled] = useState(false)
   const [submittingOverride, setSubmittingOverride] = useState(false)
+
+  // Students list modal
+  const [studentsModal, setStudentsModal] = useState<Unit | null>(null)
+  const [unitStudents, setUnitStudents] = useState<any[]>([])
+  const [loadingStudents, setLoadingStudents] = useState(false)
 
   useEffect(() => { fetchMyUnits(); fetchVenues() }, [])
   useEffect(() => { if (tab === 'register') fetchRegisterData() }, [tab])
@@ -208,6 +214,37 @@ export default function LecturerUnitsPage() {
     setOvSlot(''); setOvReason(''); setOvCancelled(false)
   }
 
+  async function fetchUnitStudents(unit: Unit) {
+    setStudentsModal(unit)
+    setLoadingStudents(true)
+    setUnitStudents([])
+    try {
+      const res = await fetch(`/api/lecturer/unit-students?unit_id=${unit.id}`)
+      const d = await res.json()
+      if (d.success) setUnitStudents(d.data || [])
+      else toast.error(d.error || 'Failed to load students')
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setLoadingStudents(false)
+    }
+  }
+
+  function exportStudentsToCSV() {
+    if (!studentsModal || unitStudents.length === 0) return
+    const headers = ['Name', 'Student ID', 'Email']
+    const csvData = unitStudents.map(s => `"${s.full_name || ''}","${s.student_id || ''}","${s.email || ''}"`)
+    const csvContent = [headers.join(','), ...csvData].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `Students_${studentsModal.code}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   // Units filtered by selected course in register tab
   const filteredAvailable = selCourse
     ? available.filter(u => (u.course_units || []).some(cu => cu.course_id === selCourse))
@@ -292,6 +329,14 @@ export default function LecturerUnitsPage() {
                               {u.code}
                             </span>
                             <span className="badge badge-purple text-xs">{u.credits} cr</span>
+                            <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold" style={{ background: '#e3f2fd', color: '#1565c0' }}>
+                              👥 {u.enrolled_count || 0} / {u.max_students} Students
+                            </span>
+                            <button onClick={() => fetchUnitStudents(u)}
+                              className="text-xs font-semibold px-2.5 py-0.5 rounded transition-colors ml-1"
+                              style={{ background: '#f3e5f5', color: '#6a1b9a' }}>
+                              List
+                            </button>
                           </div>
                           <h3 className="font-semibold text-gray-800 text-sm">{u.name}</h3>
                           <p className="text-xs text-gray-400 mt-0.5">{u.department?.name}</p>
@@ -722,6 +767,45 @@ export default function LecturerUnitsPage() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STUDENTS MODAL */}
+      {studentsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-bold" style={{ fontFamily: 'Playfair Display, serif', color: '#6a1b9a' }}>
+                  👥 Enrolled Students — {studentsModal.code}
+                </h2>
+                <button onClick={() => setStudentsModal(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">✕</button>
+              </div>
+            {unitStudents.length > 0 && (
+              <div className="mb-4">
+                <button onClick={exportStudentsToCSV} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition-colors hover:bg-blue-800 shadow-sm" style={{ background: '#1565c0' }}>
+                  ⬇️ Download CSV
+                </button>
+              </div>
+            )}
+              {loadingStudents ? (
+                <div className="text-center py-10 text-gray-400">⏳ Loading students...</div>
+              ) : unitStudents.length === 0 ? (
+                <div className="text-center py-10 text-gray-400">No students enrolled yet.</div>
+              ) : (
+                <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
+                  {unitStudents.map((s, idx) => (
+                    <div key={idx} className="flex justify-between items-center p-3 rounded-xl border" style={{ borderColor: '#e8eaf6' }}>
+                      <div>
+                        <div className="font-bold text-sm text-gray-800">{s.full_name}</div>
+                        <div className="text-xs text-gray-500">{s.student_id} • {s.email}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

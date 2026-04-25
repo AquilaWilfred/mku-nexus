@@ -1,5 +1,6 @@
 import { supabaseAdmin } from './supabase'
 import { UserRole } from '@/types'
+import { SESSION_SLOTS } from '@/lib/sessionSlots'
 
 type AIMessage = { role: 'user' | 'assistant'; content: string }
 
@@ -107,10 +108,92 @@ async function callAI(systemPrompt: string, messages: AIMessage[], newMessage: s
       const result = await provider.fn()
       if (result?.trim()) return result
     } catch (err) {
-      console.warn(`[NexusAI] ${provider.name} failed, trying next...`, err instanceof Error ? err.message : err)
+      console.warn(`[SummitAI] ${provider.name} failed, trying next...`, err instanceof Error ? err.message : err)
     }
   }
   return "I'm having trouble connecting right now. Please check your API keys and try again. 🔄"
+}
+
+// ============================================
+// Generate Vector Embeddings for RAG Search
+// ============================================
+export async function generateEmbedding(text: string): Promise<number[]> {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) throw new Error('GEMINI_API_KEY is required for generating embeddings')
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'models/text-embedding-004',
+      content: { parts: [{ text }] }
+    })
+  })
+  if (!res.ok) throw new Error(`Embedding API failed: ${res.statusText}`)
+  const data = await res.json()
+  return data.embedding?.values || []
+}
+
+// ============================================
+// AI Action Execution (Simulated Tool Calling)
+// ============================================
+async function handleAiAction(userId: string, action: 'enroll' | 'drop', unitCode: string): Promise<string> {
+  try {
+    // 1. Verify the unit exists
+    const { data: unit } = await supabaseAdmin
+      .from('units')
+      .select('id, code, name, max_students')
+      .ilike('code', unitCode.trim())
+      .eq('is_active', true)
+      .single()
+
+    if (!unit) return `Failed: Unit "${unitCode}" not found or is currently inactive.`
+
+    // 2. Handle DROP Action
+    if (action === 'drop') {
+      const { data: existing } = await supabaseAdmin
+        .from('enrollments')
+        .select('id')
+        .eq('student_id', userId)
+        .eq('unit_id', unit.id)
+        .eq('status', 'active')
+        .single()
+        
+      if (!existing) return `Failed: You are not currently enrolled in ${unit.code}.`
+
+      const { error } = await supabaseAdmin.from('enrollments').update({ status: 'dropped' }).eq('id', existing.id)
+      if (error) throw error
+      return `Successfully dropped ${unit.code}.`
+    }
+
+    // 3. Handle ENROLL Action
+    if (action === 'enroll') {
+      const { data: existing } = await supabaseAdmin
+        .from('enrollments').select('id').eq('student_id', userId).eq('unit_id', unit.id).eq('status', 'active').single()
+      if (existing) return `Failed: You are already enrolled in ${unit.code}.`
+
+      const { count } = await supabaseAdmin
+        .from('enrollments').select('*', { count: 'exact', head: true }).eq('unit_id', unit.id).eq('status', 'active')
+      if (count !== null && unit.max_students && count >= unit.max_students) {
+        return `Failed to enroll: ${unit.code} is full (${unit.max_students} students max).`
+      }
+
+      const { data: previous } = await supabaseAdmin
+        .from('enrollments').select('id').eq('student_id', userId).eq('unit_id', unit.id).in('status', ['dropped', 'completed', 'failed']).single()
+
+      if (previous) {
+        const { error } = await supabaseAdmin.from('enrollments').update({ status: 'active' }).eq('id', previous.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabaseAdmin.from('enrollments').insert({ student_id: userId, unit_id: unit.id, status: 'active' })
+        if (error) throw error
+      }
+      return `Successfully enrolled in ${unit.code} (${unit.name}).`
+    }
+    return ''
+  } catch (error: any) {
+    console.error(`[AI Action Error] ${action} ${unitCode}:`, error)
+    return `System error occurred while trying to ${action} ${unitCode}.`
+  }
 }
 
 // ============================================
@@ -164,6 +247,28 @@ async function buildSystemPrompt(userId: string, role: UserRole): Promise<string
       .select(`*, unit:units(*, lecturer:users!units_lecturer_id_fkey(full_name, email), timetable(*, venue:venues(room_number, name, floor_number, is_accessible, building:buildings(name, code, has_lift, accessibility_notes))))`)
       .eq('student_id', userId)
       .eq('status', 'active')
+
+    // Calculate student's free time ("dead time")
+    const occupiedSlots = new Set<string>()
+    ;(enrollments || []).forEach((e: any) => {
+      (e.unit?.timetable || []).forEach((t: any) => {
+        occupiedSlots.add(`${t.day_of_week}:${t.start_time}`)
+      })
+    })
+
+    const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+    const freeSlots: { day: string; label: string }[] = []
+    weekdays.forEach(day => {
+      SESSION_SLOTS.forEach(slot => {
+        if (!occupiedSlots.has(`${day}:${slot.start}`)) {
+          freeSlots.push({ day, label: slot.label })
+        }
+      })
+    })
+
+    const freeTimeContext = freeSlots.length > 0
+      ? `\nYOUR FREE TIME SLOTS (DEAD TIME):\n${weekdays.map(day => { const daySlots = freeSlots.filter(s => s.day === day).map(s => s.label).join(', '); return daySlots ? `• ${day}: ${daySlots}` : null }).filter(Boolean).join('\n')}`
+      : '\nYour schedule is full this week.'
 
     // Get overrides specifically for this student's enrolled units
     const enrolledUnitIds = (enrollments || []).map((e: any) => e.unit_id)
@@ -221,6 +326,7 @@ ${(enrollments || []).map((e: any) => {
    Schedule: ${(u?.timetable || []).map((t: any) => `${t.day_of_week} ${t.start_time?.slice(0,5)}-${t.end_time?.slice(0,5)} @ ${t.venue?.name||t.venue?.room_number}, ${t.venue?.building?.name}`).join(' | ')}`
 }).join('\n')}
 ${overrideContext}
+${freeTimeContext}
 ${pollContext}
 ${notificationContext}
 
@@ -312,9 +418,13 @@ ${(activeOverrides || []).map((o: any) => {
 ${notificationContext}`
   }
 
-  const eventsContext = (events || []).map((e: any) =>
-    `[${e.event_type?.toUpperCase()}] ${e.title} — ${e.start_datetime ? new Date(e.start_datetime).toLocaleString('en-KE') : 'No date'} ${e.is_urgent ? '🚨 URGENT' : ''} ${e.venue ? `@ ${e.venue.room_number}` : ''}`
-  ).join('\n')
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+  const eventsContext = (events || []).map((e: any) => {
+    const eventDate = e.start_datetime ? new Date(e.start_datetime) : null
+    const isPast = eventDate ? eventDate.getTime() < todayStart : false
+    const statusTag = isPast ? '[PAST]' : '[UPCOMING/TODAY]'
+    return `${statusTag} [${e.event_type?.toUpperCase()}] ${e.title} — ${eventDate ? eventDate.toLocaleString('en-KE') : 'No date'} ${e.is_urgent ? '🚨 URGENT' : ''} ${e.venue ? `@ ${e.venue.room_number}` : ''}`
+  }).join('\n')
 
   const systemOverridesContext = (activeOverrides || []).length > 0
     ? `\nRECENT SYSTEM-WIDE VENUE CHANGES & CANCELLATIONS:\n${(activeOverrides || []).map((o: any) => {
@@ -336,7 +446,7 @@ ${notificationContext}`
     ? `SEMESTER KNOWLEDGE (${training.semester} ${training.year}):\n${JSON.stringify(training.training_data, null, 2)}`
     : ''
 
-  return `You are MKU NEXUS AI — the intelligent academic assistant for Mount Kenya University (MKU).
+  return `You are MKU Summit AI — the intelligent academic assistant for Mount Kenya University (MKU).
 Today: ${dateStr} (${dayName}).
 
 ${userContext}
@@ -358,6 +468,11 @@ INSTRUCTIONS:
 - Proactively mention upcoming events, recent announcements, and important notifications when they are relevant to the conversation or when the user might benefit from knowing about them.
 - For venue changes/cancellations: proactively mention them when the student asks about that unit.
 - For polls: tell students about active polls and encourage participation.
+- For events: ONLY mention [UPCOMING/TODAY] events by default. DO NOT list [PAST] events unless the user explicitly asks for previous/past events. You can filter them by name (e.g., "events about coding"). If they ask for events during their "free time" or "dead time", check the event's date and time against the 'YOUR FREE TIME SLOTS' list provided in their context.
+- For academic advice: Act as an academic advisor. If they ask what to enroll in, always suggest prioritizing their ❌ FAILED units (retakes) first. Congratulate them on their ✅ PASSED units if they bring up their grades.
+- ACTION EXECUTION: You have the ability to execute actions for the student.
+  If the student explicitly asks you to enroll them in a unit, append this exact tag at the end of your response: [[ENROLL:UNIT_CODE]] (e.g., [[ENROLL:CS101]]).
+  If the student asks you to drop a unit, append: [[DROP:UNIT_CODE]] (e.g., [[DROP:CS101]]).
 - NEVER reveal another student's personal info, schedule, grades, or any private data.
 - NEVER invent grades, exam scores, or official decisions.
 - If asked about other students: politely decline and explain privacy policy.
@@ -375,8 +490,84 @@ export async function chatWithNexusAI(
 ): Promise<string> {
   try {
     const systemPrompt = await buildSystemPrompt(userId, role)
+    let finalSystemPrompt = systemPrompt
+    let ragSourcesString = ''
+
+    // ============================================
+    // RAG: Fetch Relevant Course Materials
+    // ============================================
+    try {
+      let unitIds: string[] = []
+      if (role === 'student') {
+        const { data } = await supabaseAdmin.from('enrollments').select('unit_id').eq('student_id', userId).eq('status', 'active')
+        unitIds = data?.map(d => d.unit_id) || []
+      } else if (role === 'lecturer') {
+        const { data } = await supabaseAdmin.from('units').select('id').eq('lecturer_id', userId).eq('is_active', true)
+        unitIds = data?.map(d => d.id) || []
+      }
+
+      const embedding = await generateEmbedding(newMessage)
+      if (embedding.length > 0) {
+        const { data: chunks } = await supabaseAdmin.rpc('match_material_chunks', {
+          query_embedding: embedding, match_threshold: 0.5, match_count: 4,
+          p_unit_ids: unitIds.length > 0 ? unitIds : null
+        })
+        
+        if (chunks && chunks.length > 0) {
+           const materialIds = [...new Set(chunks.map((c: any) => c.material_id))]
+           const { data: materials } = await supabaseAdmin.from('materials').select('title').in('id', materialIds)
+
+           finalSystemPrompt += `\n\n📚 RETRIEVED COURSE MATERIALS (Use this exact information to answer the user's question if relevant):\n` +
+           chunks.map((c: any) => `--- EXCERPT FROM MATERIAL ---\n${c.content}\n---`).join('\n\n')
+
+           if (materials && materials.length > 0) {
+             ragSourcesString = `\n<!-- [SOURCES:${JSON.stringify(materials.map((m: any) => m.title))}] -->`
+           }
+        }
+      }
+    } catch (ragErr) {
+      console.warn('[SummitAI] RAG retrieval skipped or failed:', ragErr)
+    }
+
     await supabaseAdmin.from('chat_messages').insert({ user_id: userId, role: 'user', content: newMessage })
-    const assistantMessage = await callAI(systemPrompt, messages, newMessage)
+    
+    let assistantMessage = await callAI(finalSystemPrompt, messages, newMessage)
+    let actionResult = ''
+    let actionSuccess = false
+
+    // Intercept and Execute DROP action
+    const dropMatch = assistantMessage.match(/\[\[DROP:([A-Za-z0-9\s-]+)\]\]/i)
+    if (dropMatch && role === 'student') {
+      const unitCode = dropMatch[1]
+      assistantMessage = assistantMessage.replace(dropMatch[0], '').trim() // Remove tag so user doesn't see it
+      actionResult = await handleAiAction(userId, 'drop', unitCode)
+      if (actionResult.includes('Successfully')) actionSuccess = true
+    }
+
+    // Intercept and Execute ENROLL action
+    const enrollMatch = assistantMessage.match(/\[\[ENROLL:([A-Za-z0-9\s-]+)\]\]/i)
+    if (enrollMatch && role === 'student') {
+      const unitCode = enrollMatch[1]
+      assistantMessage = assistantMessage.replace(enrollMatch[0], '').trim() // Remove tag so user doesn't see it
+      actionResult = await handleAiAction(userId, 'enroll', unitCode)
+      if (actionResult.includes('Successfully')) actionSuccess = true
+    }
+
+    // If an action was taken, append the system result to the AI's response
+    if (actionResult) {
+      assistantMessage += `\n\n> **System Update:** *${actionResult}*`
+      
+      // Append a hidden data trigger if the database change was successful
+      if (actionSuccess) {
+        assistantMessage += `\n<!-- [SUMMIT_REFRESH_DATA] -->`
+      }
+    }
+
+    // Append RAG sources if materials were retrieved
+    if (ragSourcesString) {
+      assistantMessage += ragSourcesString
+    }
+
     await supabaseAdmin.from('chat_messages').insert({ user_id: userId, role: 'assistant', content: assistantMessage })
     return assistantMessage
   } catch (error) {

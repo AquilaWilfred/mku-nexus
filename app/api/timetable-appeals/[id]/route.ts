@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/authOptions'
 import { supabaseAdmin } from '@/lib/supabase'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -23,11 +23,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const { data: appeal } = await supabaseAdmin
       .from('timetable_appeals')
-      .select('*, unit:units!timetable_appeals_unit_id_fkey(name, code)')
+      .select('*, unit:units!timetable_appeals_unit_id_fkey(name, code, lecturer_id)')
       .eq('id', id)
       .single()
 
     if (!appeal) return NextResponse.json({ error: 'Appeal not found' }, { status: 404 })
+
+    // Lecturers can only update appeals for their own units
+    if (role === 'lecturer') {
+      const unitData = appeal.unit as any
+      if (unitData?.lecturer_id !== managerId) {
+        return NextResponse.json({ error: 'Unauthorized - not your unit' }, { status: 403 })
+      }
+    }
 
     await supabaseAdmin.from('timetable_appeals').update({
       status,

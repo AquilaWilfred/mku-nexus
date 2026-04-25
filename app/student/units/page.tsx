@@ -187,21 +187,47 @@ export default function StudentUnitsPage() {
   }
 
   async function dropUnit(unitId: string, code: string) {
-    if (!confirm(`Drop ${code}? You can re-enroll later.`)) return
-    setDropping(unitId)
-    const r = await fetch('/api/enrollments', {
-      method: 'DELETE',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ unit_id: unitId })
-    })
-    const d = await r.json()
-    setDropping(null)
-    if (d.success) {
-      toast.success('Dropped ' + code)
-      setEnrolledIds(p => { const s = new Set(p); s.delete(unitId); return s })
-      setAvailable(p => p.map(u => u.id === unitId ? {...u, enrolled: false} : u))
-      fetchMyUnits()
-    } else toast.error(d.error || 'Failed to drop unit')
+    // Store previous states to easily revert if the user clicks "Undo"
+    const previousMyUnits = [...myUnits]
+    const previousAvailable = [...available]
+    const previousEnrolledIds = new Set(enrolledIds)
+
+    // Optimistically update UI immediately
+    setEnrolledIds(p => { const s = new Set(p); s.delete(unitId); return s })
+    setAvailable(p => p.map(u => u.id === unitId ? { ...u, enrolled: false } : u))
+    setMyUnits(p => p.filter(u => u.id !== unitId)) // Remove from enrolled list
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const r = await fetch('/api/enrollments', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ unit_id: unitId })
+        })
+        const d = await r.json()
+        if (!d.success) throw new Error(d.error || 'Failed to drop unit')
+      } catch (err: any) {
+        console.error('Failed to drop unit', err)
+        setMyUnits(previousMyUnits)
+        setAvailable(previousAvailable)
+        setEnrolledIds(previousEnrolledIds)
+        toast.error('Network error: Failed to drop unit.')
+      }
+    }, 5000)
+
+    toast((t) => (
+      <div className="flex items-center gap-4">
+        <span className="text-sm font-medium">Dropped {code} 🗑️</span>
+        <button onClick={() => {
+            clearTimeout(timeoutId)
+            setMyUnits(previousMyUnits); setAvailable(previousAvailable); setEnrolledIds(previousEnrolledIds)
+            toast.dismiss(t.id); toast.success('Action undone ↩️')
+          }}
+          className="text-xs font-bold px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg transition-colors">
+          Undo
+        </button>
+      </div>
+    ), { duration: 5000, id: `drop-toast-${unitId}` })
   }
 
   async function changeCourse() {

@@ -1,5 +1,5 @@
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/authOptions'
 import { redirect } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase'
 import Sidebar from '@/components/shared/Sidebar'
@@ -17,6 +17,10 @@ export default async function LecturerProfile() {
     .select('id, email, full_name, role, student_id, staff_id, phone, profile_image, bio, is_active, is_disabled, disability_type, created_at')
     .eq('id', userId)
     .single()
+
+  if (!profile) {
+    redirect('/lecturer/dashboard')
+  }
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#f8f9ff' }}>

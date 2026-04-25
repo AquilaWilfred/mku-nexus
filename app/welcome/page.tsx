@@ -14,10 +14,10 @@ export default function WelcomePage() {
       <header className="relative z-10 flex items-center justify-between px-8 py-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #1a237e, #6a1b9a)' }}>
-            <span className="text-white font-bold text-lg" style={{ fontFamily: 'Playfair Display, serif' }}>N</span>
+            <span className="text-white font-bold text-lg" style={{ fontFamily: 'Playfair Display, serif' }}>S</span>
           </div>
           <div>
-            <span className="font-bold text-xl" style={{ fontFamily: 'Playfair Display, serif', color: '#1a237e' }}>MKU NEXUS</span>
+            <span className="font-bold text-xl" style={{ fontFamily: 'Playfair Display, serif', color: '#1a237e' }}>MKU Summit</span>
             <p className="text-xs text-gray-500 leading-none">Smart Academic Platform</p>
           </div>
         </div>
@@ -48,7 +48,7 @@ export default function WelcomePage() {
           </p>
 
           {/* Portal Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
             {[
               {
                 role: 'Student',
@@ -65,6 +65,14 @@ export default function WelcomePage() {
                 href: '/lecturer/login',
                 color: '#6a1b9a',
                 bg: '#f3e5f5',
+              },
+              {
+                role: 'Schedule Manager',
+                icon: '📋',
+                description: 'Review timetable appeals, manage schedules & venues',
+                href: '/schedule-manager/login',
+                color: '#0d47a1',
+                bg: '#e3f2fd',
               },
               {
                 role: 'Admin',

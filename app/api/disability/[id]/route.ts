@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/authOptions'
 import { supabaseAdmin } from '@/lib/supabase'
 import { UserRole } from '@/types'
 
@@ -14,6 +14,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { status, lecturer_notes } = await req.json()
 
     if (role === 'lecturer') {
+      // Use inner join to verify lecturer owns this unit before allowing update
+      const { data: appeal, error: fetchError } = await supabaseAdmin
+        .from('disability_appeals')
+        .select('*, unit:units!inner(lecturer_id)')
+        .eq('id', params.id)
+        .eq('unit.lecturer_id', userId)
+        .single()
+
+      if (fetchError || !appeal) {
+        return NextResponse.json({ error: 'Appeal not found or unauthorized' }, { status: 404 })
+      }
+
       const { data, error } = await supabaseAdmin
         .from('disability_appeals')
         .update({

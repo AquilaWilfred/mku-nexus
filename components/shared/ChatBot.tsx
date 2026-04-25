@@ -21,7 +21,22 @@ interface ChatBotProps {
 // Handles: **bold**, *italic*, `code`, numbered lists, bullets
 // ============================================================
 function renderMarkdown(text: string): React.ReactNode[] {
-  const lines = text.split('\n')
+  let cleanText = text
+  let sources: string[] = []
+
+  // Extract RAG sources from hidden tag
+  const sourceMatch = cleanText.match(/<!-- \[SOURCES:(.*?)\] -->/)
+  if (sourceMatch) {
+    try {
+      sources = JSON.parse(sourceMatch[1])
+      cleanText = cleanText.replace(sourceMatch[0], '')
+    } catch (e) {}
+  }
+
+  // Clean out any refresh tags so they don't render as empty spaces
+  cleanText = cleanText.replace(/<!-- \[SUMMIT_REFRESH_DATA\] -->/g, '')
+
+  const lines = cleanText.split('\n')
   const elements: React.ReactNode[] = []
   let key = 0
 
@@ -78,6 +93,21 @@ function renderMarkdown(text: string): React.ReactNode[] {
     )
   }
 
+  // Render sources at the bottom of the message
+  if (sources.length > 0) {
+    elements.push(
+      <div key={key++} className="mt-3 pt-2 border-t border-gray-200/60 flex flex-wrap gap-1.5 items-center">
+        <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Sources:</span>
+        {sources.map((sourceTitle, idx) => (
+          <span key={idx} className="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1"
+            style={{ background: '#e8eaf6', color: '#1a237e', border: '1px solid #c5cae9' }}>
+            📄 {sourceTitle}
+          </span>
+        ))}
+      </div>
+    )
+  }
+
   return elements
 }
 
@@ -116,10 +146,10 @@ export default function ChatBot({ userRole, userName, floating = false }: ChatBo
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const roleGreetings: Record<string, string> = {
-    student: `Hi ${userName}! 👋 I'm your NEXUS AI Assistant. I can help you with your class schedule, check if you have classes today, quiz you on your subjects, or answer questions about campus events and venues. What would you like to know?`,
-    lecturer: `Hello ${userName}! 👋 I'm the NEXUS AI. I can help you with your teaching schedule, answer questions about campus events, or assist with any academic queries. How can I help you today?`,
-    admin: `Welcome ${userName}! 🔐 I'm the NEXUS AI with full system access. I can provide insights on student data, system status, events, or any campus information. What do you need?`,
-    schedule_manager: `Hello ${userName}! 📋 I'm the NEXUS AI. I can help you review timetable appeals, check schedules, and understand venue accessibility. What do you need?`,
+    student: `Hi ${userName}! 👋 I'm your Summit AI Assistant. I can help you with your class schedule, check if you have classes today, quiz you on your subjects, or answer questions about campus events and venues. What would you like to know?`,
+    lecturer: `Hello ${userName}! 👋 I'm the Summit AI. I can help you with your teaching schedule, answer questions about campus events, or assist with any academic queries. How can I help you today?`,
+    admin: `Welcome ${userName}! 🔐 I'm the Summit AI with full system access. I can provide insights on student data, system status, events, or any campus information. What do you need?`,
+    schedule_manager: `Hello ${userName}! 📋 I'm the Summit AI. I can help you review timetable appeals, check schedules, and understand venue accessibility. What do you need?`,
   }
 
   useEffect(() => {
@@ -225,7 +255,7 @@ export default function ChatBot({ userRole, userName, floating = false }: ChatBo
             AI
           </div>
           <div>
-            <div className="font-semibold text-sm" style={{ color: '#1a237e' }}>NEXUS AI Assistant</div>
+            <div className="font-semibold text-sm" style={{ color: '#1a237e' }}>Summit AI Assistant</div>
             <div className="flex items-center gap-1.5 text-xs text-gray-500">
               <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
               Online · Real-time data

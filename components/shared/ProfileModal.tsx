@@ -15,11 +15,17 @@ export default function ProfileModal({ isOpen, onClose }: Props) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [soundEnabled, setSoundEnabled] = useState(true)
+  const [pushEnabled, setPushEnabled] = useState(true)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (isOpen) {
       loadProfile()
+      if (typeof window !== 'undefined') {
+        setSoundEnabled(localStorage.getItem('nexus_sound_enabled') !== 'false')
+        setPushEnabled(localStorage.getItem('nexus_push_enabled') !== 'false')
+      }
     }
   }, [isOpen])
 
@@ -162,6 +168,39 @@ export default function ProfileModal({ isOpen, onClose }: Props) {
                   onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))}
                   className="nexus-input" rows={3}
                   placeholder="A short description about yourself..." />
+              </div>
+
+              {/* Sound Preferences */}
+              <div className="p-4 rounded-xl border flex items-center justify-between" style={{ borderColor: '#e0e0ef', background: '#fafafa' }}>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">🔔 Notification Sounds</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Play a subtle pop sound for urgent alerts.</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only peer" checked={soundEnabled} onChange={e => {
+                    setSoundEnabled(e.target.checked)
+                    localStorage.setItem('nexus_sound_enabled', e.target.checked.toString())
+                  }} />
+                  <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ backgroundColor: soundEnabled ? color : '#d1d5db' }}></div>
+                </label>
+              </div>
+
+              {/* Push Preferences */}
+              <div className="p-4 rounded-xl border flex items-center justify-between" style={{ borderColor: '#e0e0ef', background: '#fafafa' }}>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">📱 Push Notifications</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Receive browser alerts for urgent updates.</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only peer" checked={pushEnabled} onChange={e => {
+                    setPushEnabled(e.target.checked)
+                    localStorage.setItem('nexus_push_enabled', e.target.checked.toString())
+                    if (e.target.checked && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+                      Notification.requestPermission()
+                    }
+                  }} />
+                  <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ backgroundColor: pushEnabled ? color : '#d1d5db' }}></div>
+                </label>
               </div>
 
               {/* Read-only info */}

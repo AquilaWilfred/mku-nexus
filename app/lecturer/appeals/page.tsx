@@ -2,202 +2,181 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import Sidebar from '@/components/shared/Sidebar'
-import { UserRole } from '@/types'
 import toast from 'react-hot-toast'
+import { UserRole } from '@/types'
 
-interface Appeal {
-  id: string; disability_type: string; description: string; status: string
-  lecturer_notes?: string; admin_notes?: string; created_at: string
-  student?: { full_name: string; student_id: string; is_disabled: boolean }
-  unit?: { code: string; name: string }
-  current_venue?: { room_number: string; name: string; building?: { name: string; has_lift: boolean } }
-  requested_venue?: { room_number: string; name: string; building?: { name: string; has_lift: boolean } }
-}
-
-const statusCfg: Record<string, { color: string; bg: string; icon: string }> = {
-  pending: { color: '#e65100', bg: '#fff3e0', icon: '⏳' },
-  under_review: { color: '#1565c0', bg: '#e3f2fd', icon: '🔍' },
-  approved: { color: '#2e7d32', bg: '#e8f5e9', icon: '✅' },
-  rejected: { color: '#c62828', bg: '#ffebee', icon: '❌' },
-}
-
-export default function LecturerAppeals() {
+export default function LecturerAppealsPage() {
   const { data: session } = useSession()
-  const [appeals, setAppeals] = useState<Appeal[]>([])
-  const [selectedAppeal, setSelectedAppeal] = useState<Appeal | null>(null)
-  const [reviewStatus, setReviewStatus] = useState('under_review')
-  const [notes, setNotes] = useState('')
+  const user = session?.user as any
+  const [appeals, setAppeals] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [replyModal, setReplyModal] = useState<any | null>(null)
+  const [replyForm, setReplyForm] = useState({ status: '', lecturer_notes: '' })
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => { loadAppeals() }, [])
 
   async function loadAppeals() {
-    const res = await fetch('/api/disability?role=lecturer')
-    const data = await res.json()
-    if (data.success) setAppeals(data.data)
+    setLoading(true)
+    try {
+      const res = await fetch('/api/timetable-appeals')
+      const data = await res.json()
+      if (data.success) {
+        setAppeals(data.data || [])
+      } else {
+        toast.error(data.error || 'Failed to load requests')
+      }
+    } catch {
+      toast.error('Network error while loading requests')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  async function submitReview(appealId: string, newStatus: string) {
+  async function handleReplySubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!replyModal) return
     setSubmitting(true)
     try {
-      const res = await fetch(`/api/disability/${appealId}`, {
+      const res = await fetch('/api/timetable-appeals', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus, lecturer_notes: notes }),
+        body: JSON.stringify({
+          id: replyModal.id,
+          status: replyForm.status,
+          lecturer_notes: replyForm.lecturer_notes
+        })
       })
       const data = await res.json()
       if (data.success) {
-        toast.success('Review submitted ✅')
-        setSelectedAppeal(null)
-        setNotes('')
+        toast.success('Reply sent successfully! ✅')
+        setReplyModal(null)
         loadAppeals()
-      } else { toast.error(data.error || 'Failed to submit review') }
-    } finally { setSubmitting(false) }
+      } else {
+        toast.error(data.error || 'Failed to update request')
+      }
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const role = (session?.user as unknown as { role: UserRole })?.role || 'lecturer'
-  const pending = appeals.filter(a => a.status === 'pending')
-  const reviewed = appeals.filter(a => a.status !== 'pending')
+  const statusColors: Record<string, string> = {
+    pending: '#e65100', under_review: '#1565c0', approved: '#2e7d32',
+    rejected: '#c62828', escalated: '#6a1b9a',
+  }
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#f8f9ff' }}>
-      <Sidebar role={role} userName={session?.user?.name || ''} userEmail={session?.user?.email || ''} />
-      <main className="flex-1 overflow-y-auto">
-        <div className="p-8">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold" style={{ fontFamily: 'Playfair Display, serif', color: '#6a1b9a' }}>
-              ♿ Accessibility Appeals
-            </h1>
-            <p className="text-gray-500 mt-1">
-              Review accommodation requests from students in your units
-            </p>
-          </div>
+      <Sidebar role={(user?.role || 'lecturer') as UserRole} userName={user?.name || ''} userEmail={user?.email || ''} />
+      <main className="flex-1 overflow-y-auto p-4 md:p-8">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold" style={{ fontFamily: 'Playfair Display, serif', color: '#6a1b9a' }}>
+            📥 Student Unit Requests
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">
+            Manage and reply to student appeals and requests for the specific units you are assigned to teach.
+          </p>
+        </div>
 
-          {pending.length > 0 && (
-            <div className="mb-6 p-4 rounded-xl flex items-center gap-3"
-              style={{ background: '#fff3e0', border: '1px solid #ffcc02' }}>
-              ⚠️ <span className="font-semibold text-orange-700">{pending.length} appeal{pending.length > 1 ? 's' : ''} awaiting your review</span>
+        <div className="nexus-card p-6 border-t-4" style={{ borderColor: '#6a1b9a' }}>
+          {loading ? (
+            <div className="text-center py-10 text-gray-400">⏳ Loading appeals...</div>
+          ) : appeals.length === 0 ? (
+            <div className="text-center py-16 text-gray-400">
+              <div className="text-4xl mb-3">📭</div>
+              <p>No student requests found for your units.</p>
             </div>
-          )}
-
-          {/* Review Modal */}
-          {selectedAppeal && (
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-              <div className="nexus-card p-6 max-w-xl w-full">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-lg" style={{ fontFamily: 'Playfair Display, serif', color: '#6a1b9a' }}>Review Appeal</h3>
-                  <button onClick={() => { setSelectedAppeal(null); setNotes('') }} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
-                </div>
-                <div className="space-y-3 mb-5">
-                  <div className="p-3 rounded-xl" style={{ background: '#f8f9ff' }}>
-                    <div className="text-xs text-gray-500">Student</div>
-                    <div className="font-semibold">{selectedAppeal.student?.full_name} ({selectedAppeal.student?.student_id})</div>
-                  </div>
-                  <div className="p-3 rounded-xl" style={{ background: '#f8f9ff' }}>
-                    <div className="text-xs text-gray-500">Disability Type</div>
-                    <div className="font-semibold">{selectedAppeal.disability_type}</div>
-                  </div>
-                  <div className="p-3 rounded-xl" style={{ background: '#f8f9ff' }}>
-                    <div className="text-xs text-gray-500">Description</div>
-                    <div className="text-sm">{selectedAppeal.description}</div>
-                  </div>
-                  {selectedAppeal.current_venue && (
-                    <div className="p-3 rounded-xl" style={{ background: '#fff8f0' }}>
-                      <div className="text-xs font-semibold text-orange-700">Current venue: </div>
-                      <div className="text-sm">{selectedAppeal.current_venue.room_number}, {selectedAppeal.current_venue.building?.name}
-                        {selectedAppeal.current_venue.building && !selectedAppeal.current_venue.building.has_lift && <span className="text-red-500"> ⚠️ No lift</span>}
+          ) : (
+            <div className="space-y-4">
+              {appeals.map(appeal => (
+                <div key={appeal.id} className="p-5 rounded-xl border transition-all hover:shadow-md" style={{ borderColor: '#e8eaf6', background: 'white' }}>
+                  <div className="flex justify-between items-start mb-3 gap-4 flex-wrap">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="font-bold text-sm px-2 py-0.5 rounded" style={{ background: '#f3e5f5', color: '#6a1b9a' }}>
+                          {appeal.unit?.code}
+                        </span>
+                        <span className="text-xs px-2.5 py-0.5 rounded-full font-bold" style={{ background: `${statusColors[appeal.status] || '#999'}20`, color: statusColors[appeal.status] || '#999' }}>
+                          {appeal.status.replace('_', ' ').toUpperCase()}
+                        </span>
+                        <span className="text-xs text-gray-400 mx-1">•</span>
+                        <span className="text-xs text-gray-400">{new Date(appeal.created_at).toLocaleDateString('en-GB')}</span>
                       </div>
+                      <h3 className="font-bold text-gray-800 text-sm capitalize">{appeal.appeal_type.replace('_', ' ')}</h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        👤 From: {appeal.submitter?.full_name} ({appeal.submitter?.student_id || appeal.submitter?.email})
+                      </p>
+                    </div>
+                    <button onClick={() => { setReplyModal(appeal); setReplyForm({ status: appeal.status, lecturer_notes: appeal.lecturer_notes || '' }) }}
+                      className="text-xs font-bold px-4 py-2 rounded-xl transition-colors shadow-sm"
+                      style={{ background: '#6a1b9a', color: 'white' }}>
+                      View & Reply
+                    </button>
+                  </div>
+                  <div className="mt-3 p-3.5 rounded-lg text-sm text-gray-700 border" style={{ background: '#f8f9fa', borderColor: '#eee' }}>
+                    <span className="font-semibold text-gray-500 text-xs block mb-1 uppercase tracking-wide">Request Details:</span>
+                    {appeal.description}
+                  </div>
+                  {appeal.lecturer_notes && (
+                    <div className="mt-3 p-3.5 rounded-lg text-sm border" style={{ background: '#fdfbfe', borderColor: '#e1bee7', color: '#4a0072' }}>
+                      <span className="font-semibold text-xs block mb-1 uppercase tracking-wide" style={{ color: '#8e24aa' }}>Your Reply:</span>
+                      {appeal.lecturer_notes}
                     </div>
                   )}
                 </div>
-                <div className="mb-4">
-                  <label className="nexus-label">Decision</label>
-                  <select value={reviewStatus} onChange={e => setReviewStatus(e.target.value)} className="nexus-input">
-                    <option value="under_review">🔍 Under Review</option>
-                    <option value="approved">✅ Approve</option>
-                    <option value="rejected">❌ Reject</option>
-                  </select>
-                </div>
-                <div className="mb-4">
-                  <label className="nexus-label">Your Assessment Notes</label>
-                  <textarea className="nexus-input" rows={3} value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    placeholder="Comment on the student's situation, confirm the need, suggest alternatives..." />
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={() => submitReview(selectedAppeal.id, reviewStatus)}
-                    disabled={submitting || !reviewStatus}
-                    className="flex-1 py-2.5 rounded-xl font-semibold text-sm text-white disabled:opacity-60"
-                    style={{ background: 'linear-gradient(135deg, #6a1b9a, #9c27b0)' }}>
-                    {reviewStatus === 'approved' ? '✅ Approve' : reviewStatus === 'rejected' ? '❌ Reject' : 'Forward to Admin'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Pending appeals */}
-          <div className="nexus-card p-6 mb-6">
-            <h2 className="text-lg font-bold mb-4" style={{ fontFamily: 'Playfair Display, serif', color: '#e65100' }}>
-              ⏳ Pending Review ({pending.length})
-            </h2>
-            {pending.length === 0 ? (
-              <p className="text-gray-400 text-sm text-center py-6">No pending appeals 🎉</p>
-            ) : (
-              <div className="space-y-4">
-                {pending.map(appeal => (
-                  <div key={appeal.id} className="p-5 rounded-xl border" style={{ borderColor: '#ffe0b2', background: '#fffbf0' }}>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="font-semibold">{appeal.student?.full_name}
-                          <span className="text-xs text-gray-400 ml-2">({appeal.student?.student_id})</span>
-                        </div>
-                        <div className="text-xs text-gray-600 mt-0.5">{appeal.disability_type}</div>
-                        {appeal.unit && <div className="text-xs text-gray-500 mt-0.5">Unit: {appeal.unit.code} — {appeal.unit.name}</div>}
-                        <p className="text-sm text-gray-700 mt-2 line-clamp-2">{appeal.description}</p>
-                        <div className="text-xs text-gray-400 mt-1">
-                          {new Date(appeal.created_at).toLocaleDateString('en-KE', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </div>
-                      </div>
-                      <button onClick={() => { setSelectedAppeal(appeal); setReviewStatus(appeal.status || 'under_review'); setNotes(appeal.lecturer_notes || '') }}
-                        className="text-white font-semibold px-4 py-2 rounded-xl text-sm flex-shrink-0"
-                        style={{ background: 'linear-gradient(135deg, #6a1b9a, #9c27b0)' }}>
-                        Review
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Reviewed appeals */}
-          {reviewed.length > 0 && (
-            <div className="nexus-card p-6">
-              <h2 className="text-lg font-bold mb-4" style={{ fontFamily: 'Playfair Display, serif', color: '#1a237e' }}>
-                Reviewed ({reviewed.length})
-              </h2>
-              <div className="space-y-3">
-                {reviewed.map(appeal => {
-                  const cfg = statusCfg[appeal.status]
-                  return (
-                    <div key={appeal.id} className="flex items-center gap-4 p-4 rounded-xl border" style={{ borderColor: '#e0e0ef' }}>
-                      <div className="flex-1">
-                        <div className="font-medium text-sm">{appeal.student?.full_name} — {appeal.disability_type}</div>
-                        {appeal.unit && <div className="text-xs text-gray-500">{appeal.unit.code}</div>}
-                      </div>
-                      <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
-                        style={{ background: cfg.bg, color: cfg.color }}>
-                        {cfg.icon} {appeal.status}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
+              ))}
             </div>
           )}
         </div>
       </main>
+
+      {/* Reply Modal */}
+      {replyModal && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}>
+           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+             <div className="p-6 pb-4 border-b" style={{ borderColor: '#f0f0f0' }}>
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold" style={{ fontFamily: 'Playfair Display, serif', color: '#6a1b9a' }}>
+                    Reply to Request
+                  </h2>
+                  <button onClick={() => setReplyModal(null)} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">✕</button>
+                </div>
+             </div>
+             
+             <div className="p-6">
+                <div className="mb-5 p-3 rounded-xl border text-sm text-gray-600" style={{ background: '#f8f9fa', borderColor: '#eee' }}>
+                  <div className="mb-2"><strong className="text-gray-800">Student:</strong> {replyModal.submitter?.full_name}</div>
+                  <div><strong className="text-gray-800">Request:</strong> {replyModal.description}</div>
+                </div>
+
+                <form onSubmit={handleReplySubmit} className="space-y-4">
+                  <div>
+                    <label className="nexus-label">Update Status *</label>
+                    <select className="nexus-input text-sm" value={replyForm.status} onChange={e => setReplyForm(f => ({ ...f, status: e.target.value }))} required>
+                      <option value="pending">Pending</option>
+                      <option value="under_review">Under Review</option>
+                      <option value="approved">Approved</option>
+                      <option value="rejected">Rejected</option>
+                      <option value="escalated">Escalate to Schedule Manager</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="nexus-label">Your Reply / Notes *</label>
+                    <textarea className="nexus-input text-sm" rows={4} value={replyForm.lecturer_notes} onChange={e => setReplyForm(f => ({ ...f, lecturer_notes: e.target.value }))}
+                      placeholder="Enter your response or decision to the student..." required />
+                  </div>
+                  <button type="submit" disabled={submitting}
+                    className="w-full py-3 rounded-xl font-bold text-white shadow-md disabled:opacity-60 transition-all mt-2"
+                    style={{ background: 'linear-gradient(135deg, #6a1b9a, #9c27b0)' }}>
+                    {submitting ? 'Sending...' : '📤 Send Reply & Update'}
+                  </button>
+                </form>
+             </div>
+           </div>
+         </div>
+      )}
     </div>
   )
 }

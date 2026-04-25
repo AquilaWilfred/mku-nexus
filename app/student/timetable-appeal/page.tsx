@@ -64,7 +64,7 @@ export default function StudentTimetableAppeal() {
       })
       const data = await res.json()
       if (data.success) {
-        toast.success('Appeal submitted! Schedule Manager will review it soon. 📋')
+        toast.success('Request submitted! The Schedule Manager will review it soon. 📋')
         setForm({ appeal_type: '', unit_id: '', timetable_id: '', current_venue_id: '', requested_venue_id: '', description: '' })
         loadData()
       } else {
@@ -87,10 +87,10 @@ export default function StudentTimetableAppeal() {
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="mb-6">
             <h1 className="text-2xl font-bold" style={{ fontFamily: 'Playfair Display, serif', color: '#1a237e' }}>
-              📋 Timetable Appeal
+              📋 Unit Request & Appeal
             </h1>
             <p className="text-gray-500 text-sm mt-1">
-              Submit a timetable issue — the Schedule Manager will review and respond.
+            Submit a timetable request or issue — the Schedule Manager will review and respond.
             </p>
           </div>
 
@@ -157,8 +157,7 @@ export default function StudentTimetableAppeal() {
                 </div>
 
                 <div className="p-3 rounded-xl text-xs" style={{ background: '#e3f2fd', color: '#1565c0' }}>
-                  💡 Your appeal goes directly to the Schedule Manager who specialises in timetable accessibility and changes.
-                  You will receive a notification when it's reviewed.
+                  💡 Your request goes directly to the Schedule Manager for review. You will receive a notification when it's updated.
                 </div>
 
                 <button type="submit" disabled={submitting || !form.appeal_type || !form.unit_id || !form.description}
@@ -184,12 +183,8 @@ export default function StudentTimetableAppeal() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-sm text-gray-800">
+                            <span className="font-bold text-sm text-gray-800">
                               {(appeal.unit as any)?.code || 'Unit'}
-                            </span>
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-                              style={{ background: `${statusColors[appeal.status]}20`, color: statusColors[appeal.status] }}>
-                              {appeal.status.replace('_', ' ')}
                             </span>
                           </div>
                           <p className="text-xs text-gray-500 mt-1 capitalize">{appeal.appeal_type.replace('_', ' ')}</p>
@@ -201,6 +196,22 @@ export default function StudentTimetableAppeal() {
                         </div>
                         <div className="text-xs text-gray-400">
                           {new Date(appeal.created_at).toLocaleDateString('en-KE')}
+                        </div>
+                      </div>
+
+                      {/* Visual Status Tracker */}
+                      <div className="mt-4 pt-3 border-t border-gray-200/60">
+                        <div className="flex items-center w-full max-w-sm mx-auto">
+                          <div className={`w-3 h-3 rounded-full flex-shrink-0 ${true ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
+                          <div className={`flex-1 h-1 transition-all ${['under_review', 'approved', 'rejected'].includes(appeal.status) ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
+                          <div className={`w-3 h-3 rounded-full flex-shrink-0 transition-all ${['under_review', 'approved', 'rejected'].includes(appeal.status) ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
+                          <div className={`flex-1 h-1 transition-all ${['approved', 'rejected'].includes(appeal.status) ? (appeal.status === 'approved' ? 'bg-green-500' : 'bg-red-500') : 'bg-gray-200'}`}></div>
+                          <div className={`w-3 h-3 rounded-full flex-shrink-0 transition-all ${appeal.status === 'approved' ? 'bg-green-500' : appeal.status === 'rejected' ? 'bg-red-500' : 'bg-gray-300'}`}></div>
+                        </div>
+                        <div className="flex justify-between w-full max-w-sm mx-auto text-[10px] uppercase tracking-wider text-gray-500 mt-1.5 font-bold">
+                          <span style={{ color: '#1565c0' }}>Submitted</span>
+                          <span style={{ color: ['under_review', 'approved', 'rejected'].includes(appeal.status) ? '#1565c0' : '#9ca3af' }}>Reviewing</span>
+                          <span style={{ color: appeal.status === 'approved' ? '#2e7d32' : appeal.status === 'rejected' ? '#c62828' : '#9ca3af' }}>{appeal.status === 'rejected' ? 'Rejected' : 'Approved'}</span>
                         </div>
                       </div>
                     </div>

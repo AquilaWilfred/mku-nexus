@@ -41,6 +41,38 @@ export default function NotificationsClient({ userRole }: { userRole: string }) 
     load()
   }
 
+  function clearAll() {
+    const previousNotifs = [...notifications]
+    setNotifications([])
+    window.dispatchEvent(new Event('notificationsUpdated'))
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        await fetch('/api/notifications', { method: 'DELETE' })
+      } catch (err) {
+        console.error('Failed to clear notifications', err)
+      }
+    }, 5000)
+
+    toast((t) => (
+      <div className="flex items-center gap-4">
+        <span className="text-sm font-medium">All notifications cleared 🗑️</span>
+        <button
+          onClick={() => {
+            clearTimeout(timeoutId)
+            setNotifications(previousNotifs)
+            window.dispatchEvent(new Event('notificationsUpdated'))
+            toast.dismiss(t.id)
+            toast.success('Action undone ↩️')
+          }}
+          className="text-xs font-bold px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg transition-colors"
+        >
+          Undo
+        </button>
+      </div>
+    ), { duration: 5000, id: 'clear-all-toast' })
+  }
+
   async function handleClick(n: Notification) {
     // Mark as read first
     if (!n.is_read) {
@@ -69,10 +101,15 @@ export default function NotificationsClient({ userRole }: { userRole: string }) 
             </h1>
             <p className="text-gray-500 mt-1 text-sm">{unread} unread · {notifications.length} total</p>
           </div>
-          {unread > 0 && (
-            <button onClick={() => markRead()} className="text-sm font-semibold px-4 py-2 rounded-xl"
-              style={{ background: '#f5f5f5', color: '#333' }}>✅ Mark All Read</button>
-          )}
+          <div className="flex gap-2">
+            {unread > 0 && (
+              <button onClick={() => markRead()} className="text-sm font-semibold px-4 py-2 rounded-xl"
+                style={{ background: '#f5f5f5', color: '#333' }}>✅ Mark All Read</button>
+            )}
+            {notifications.length > 0 && (
+              <button onClick={clearAll} className="text-sm font-semibold px-4 py-2 rounded-xl text-red-600 border border-red-100 hover:bg-red-50 transition-colors">🗑️ Clear All</button>
+            )}
+          </div>
         </div>
 
         {loading ? (

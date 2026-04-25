@@ -1,5 +1,5 @@
 -- ============================================
--- MKU NEXUS - Complete Database Schema
+-- MKU Summit - Complete Database Schema
 -- Run this in Supabase SQL Editor
 -- ============================================
 
@@ -413,3 +413,44 @@ CREATE TABLE IF NOT EXISTS course_units (
 -- Track which course a student is registered for
 ALTER TABLE users ADD COLUMN IF NOT EXISTS course_id UUID REFERENCES courses(id);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS year_of_study INTEGER DEFAULT 1;
+
+-- ============================================
+-- PGVECTOR & RAG (Retrieval-Augmented Generation)
+-- ============================================
+
+-- 1. Enable the pgvector extension
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- 2. Create table for document embeddings
+CREATE TABLE IF NOT EXISTS material_chunks (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  material_id UUID REFERENCES materials(id) ON DELETE CASCADE,
+  unit_id UUID REFERENCES units(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  -- We use 768 dimensions which is standard for Google's text-embedding-004
+  -- Change to 1536 if you plan to use OpenAI's text-embedding-3-small
+  embedding vector(768), 
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. Create similarity search function
+CREATE OR REPLACE FUNCTION match_material_chunks (
+  query_embedding vector(768),
+  match_threshold float,
+  match_count int,
+  p_unit_ids uuid[] DEFAULT NULL
+)
+RETURNS TABLE (
+  id uuid, material_id uuid, unit_id uuid, content text, similarity float
+)
+LANGUAGE sql STABLE
+AS $$
+  SELECT
+    material_chunks.id, material_chunks.material_id, material_chunks.unit_id, material_chunks.content,
+    1 - (material_chunks.embedding <=> query_embedding) AS similarity
+  FROM material_chunks
+  WHERE 1 - (material_chunks.embedding <=> query_embedding) > match_threshold
+    AND (p_unit_ids IS NULL OR material_chunks.unit_id = ANY(p_unit_ids))
+  ORDER BY material_chunks.embedding <=> query_embedding
+  LIMIT match_count;
+$$;

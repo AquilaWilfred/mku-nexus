@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
@@ -64,6 +64,22 @@ const roleLabels: Record<string, string> = {
   student: 'Student', lecturer: 'Lecturer', admin: 'Administrator', schedule_manager: 'Schedule Manager',
 }
 
+// Helper function for relative time formatting
+function getRelativeTime(dateString: string) {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  if (diffInSeconds < 60) return 'Just now'
+  const diffInMinutes = Math.floor(diffInSeconds / 60)
+  if (diffInMinutes < 60) return `${diffInMinutes}m ago`
+  const diffInHours = Math.floor(diffInMinutes / 60)
+  if (diffInHours < 24) return `${diffInHours}h ago`
+  const diffInDays = Math.floor(diffInHours / 24)
+  if (diffInDays < 7) return `${diffInDays}d ago`
+  return date.toLocaleDateString('en-KE', { month: 'short', day: 'numeric' })
+}
+
 interface SidebarProps { role: string; userName: string; userEmail: string }
 
 export default function Sidebar({ role, userName, userEmail }: SidebarProps) {
@@ -72,14 +88,31 @@ export default function Sidebar({ role, userName, userEmail }: SidebarProps) {
   const navItems = navConfig[role] || navConfig.student
   const [profileImage, setProfileImage] = useState<string | null>(null)
   const [notifCount, setNotifCount] = useState(0)
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false)
   const [isOpen, setIsOpen] = useState(true)
   const [collapsed, setCollapsed] = useState(false)
+  const [missingBio, setMissingBio] = useState(false)
+  const [isWiggling, setIsWiggling] = useState(false)
+  const knownNotifs = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     fetchProfileImage()
-    fetchNotifCount()
-    const interval = setInterval(fetchNotifCount, 30000)
-    return () => clearInterval(interval)
+    fetchNotificationsData()
+    const interval = setInterval(fetchNotificationsData, 30000)
+    
+    // Listen for custom event from the Notifications page
+    window.addEventListener('notificationsUpdated', fetchNotificationsData)
+
+    // Request browser notification permissions
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('notificationsUpdated', fetchNotificationsData)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -97,21 +130,75 @@ export default function Sidebar({ role, userName, userEmail }: SidebarProps) {
     return () => mediaQuery.removeEventListener('change', handleResize)
   }, [])
 
+  // Auto-close notification dropdown when the user scrolls anywhere on the page
+  useEffect(() => {
+    if (showNotifDropdown) {
+      const handleScroll = () => setShowNotifDropdown(false)
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setShowNotifDropdown(false)
+      }
+      window.addEventListener('scroll', handleScroll, { capture: true })
+      window.addEventListener('keydown', handleKeyDown)
+      return () => {
+        window.removeEventListener('scroll', handleScroll, { capture: true })
+        window.removeEventListener('keydown', handleKeyDown)
+      }
+    }
+  }, [showNotifDropdown])
+
   async function fetchProfileImage() {
     try {
       const res = await fetch('/api/profile')
       const data = await res.json()
-      if (data.success && data.data?.profile_image) {
-        setProfileImage(data.data.profile_image)
+      if (data.success && data.data) {
+        if (data.data.profile_image) {
+          setProfileImage(data.data.profile_image)
+        }
+        setMissingBio(!data.data.bio || data.data.bio.trim() === '')
       }
     } catch (_) {}
   }
 
-  async function fetchNotifCount() {
+  async function fetchNotificationsData() {
     try {
-      const res = await fetch('/api/notifications/count')
+      const res = await fetch('/api/notifications')
       const data = await res.json()
-      setNotifCount(data.count || 0)
+      if (data.success) {
+        const newNotifs = data.data || []
+        setNotifications(newNotifs)
+        const unread = newNotifs.filter((n: any) => !n.is_read).length
+        setNotifCount(unread)
+
+        // Trigger wiggle animation if there are new unread notifications (ignoring the initial load)
+        const hasNewUnread = knownNotifs.current.size > 0 && newNotifs.some((n: any) => !n.is_read && !knownNotifs.current.has(n.id))
+        if (hasNewUnread) {
+          setIsWiggling(true)
+          setTimeout(() => setIsWiggling(false), 2000) // Wiggle for 2 seconds
+        }
+
+        // Check for NEW urgent notifications
+        if (knownNotifs.current.size > 0) {
+          const freshUrgent = newNotifs.filter((n: any) => 
+            !n.is_read && n.type === 'urgent' && !knownNotifs.current.has(n.id)
+          )
+          
+          freshUrgent.forEach((n: any) => {
+            const soundPref = localStorage.getItem('nexus_sound_enabled')
+            if (soundPref !== 'false') {
+              // Play a subtle pop sound (catch ignores strict browser autoplay block errors)
+              new Audio('https://actions.google.com/sounds/v1/ui/bubble_pop.ogg').play().catch(() => {})
+            }
+            
+            // Show browser notification
+            const pushPref = localStorage.getItem('nexus_push_enabled')
+            if (pushPref !== 'false' && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              new Notification(`🚨 Urgent: ${n.title}`, { body: n.message })
+            }
+          })
+        }
+        
+        knownNotifs.current = new Set(newNotifs.map((n: any) => n.id))
+      }
     } catch (_) {}
   }
 
@@ -121,6 +208,103 @@ export default function Sidebar({ role, userName, userEmail }: SidebarProps) {
 
   return (
     <>
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes wiggle {
+          0%, 100% { transform: rotate(0deg); }
+          25% { transform: rotate(-15deg); }
+          50% { transform: rotate(15deg); }
+          75% { transform: rotate(-15deg); }
+        }
+        .animate-wiggle {
+          animation: wiggle 0.4s ease-in-out infinite;
+        }
+        @keyframes slideFadeIn {
+          from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .animate-dropdown {
+          animation: slideFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          transform-origin: top right;
+        }
+      `}} />
+      {/* Floating Header Notification Bell & Dropdown */}
+      <div className="fixed top-4 right-4 md:top-6 md:right-8 z-50">
+        <div className="relative group">
+          <button
+            onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+            className="relative p-2.5 bg-white rounded-full shadow-md text-slate-700 hover:bg-slate-50 transition-colors border border-slate-200"
+            aria-label="View notifications"
+          >
+            <span className={`text-xl leading-none block inline-block ${isWiggling ? 'animate-wiggle' : ''}`}>🔔</span>
+            {notifCount > 0 && (
+              <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-red-600 rounded-full shadow-sm">
+                {notifCount > 99 ? '99+' : notifCount}
+              </span>
+            )}
+          </button>
+          
+          {/* Custom Tooltip */}
+          <div className="absolute top-full right-0 mt-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">
+            Notifications
+          </div>
+
+          {showNotifDropdown && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowNotifDropdown(false)} />
+              <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden text-slate-800 z-50 animate-dropdown">
+                <div className="p-4 border-b border-slate-100 bg-slate-50">
+                  <h3 className="font-bold text-sm" style={{ color: '#1a237e' }}>Recent Notifications</h3>
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 text-sm">No notifications yet.</div>
+                  ) : (
+                    (() => {
+                      const topNotifs = notifications.slice(0, 6);
+                      const todayNotifs = topNotifs.filter(n => new Date(n.created_at).toDateString() === new Date().toDateString());
+                      const earlierNotifs = topNotifs.filter(n => new Date(n.created_at).toDateString() !== new Date().toDateString());
+
+                      const renderNotif = (n: any) => (
+                        <Link key={n.id} href={n.link || `/${role}/notifications`} onClick={() => setShowNotifDropdown(false)} className={`block p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors ${!n.is_read ? 'bg-blue-50/30' : ''}`}>
+                          <div className="flex justify-between items-start mb-1 gap-2">
+                            <h4 className={`text-xs ${!n.is_read ? 'font-bold text-blue-900' : 'font-semibold text-slate-700'}`}>{n.title}</h4>
+                            {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-600 mt-1 flex-shrink-0"></span>}
+                          </div>
+                          <p className="text-xs text-slate-500 line-clamp-2 leading-snug">{n.message}</p>
+                          <span className="text-[10px] text-slate-400 mt-2 block">{getRelativeTime(n.created_at)}</span>
+                        </Link>
+                      );
+
+                      return (
+                        <>
+                          {todayNotifs.length > 0 && (
+                            <>
+                              <div className="px-4 py-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider sticky top-0 border-b border-slate-100 z-10">Today</div>
+                              {todayNotifs.map(renderNotif)}
+                            </>
+                          )}
+                          {earlierNotifs.length > 0 && (
+                            <>
+                              <div className="px-4 py-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider sticky top-0 border-b border-slate-100 z-10">Earlier</div>
+                              {earlierNotifs.map(renderNotif)}
+                            </>
+                          )}
+                        </>
+                      );
+                    })()
+                  )}
+                </div>
+                <div className="p-3 border-t border-slate-100 text-center bg-slate-50 hover:bg-slate-100 transition-colors">
+                  <Link href={`/${role}/notifications`} onClick={() => setShowNotifDropdown(false)} className="text-xs font-bold text-blue-600 block">
+                    View All Notifications →
+                  </Link>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
       <button
         type="button"
         onClick={() => setIsOpen((open) => !open)}
@@ -138,10 +322,10 @@ export default function Sidebar({ role, userName, userEmail }: SidebarProps) {
       <div className={`${sidebarBaseClass} ${sidebarVisibilityClass}`} style={{ minHeight: '100vh' }}>
         <div className="flex items-center gap-3 px-4 py-4 border-b border-white/10">
           <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-lg font-bold text-white">
-            N
+            S
           </div>
           <div className={`flex-1 min-w-0 ${collapsed ? 'hidden' : 'block'}`}>
-            <div className="text-white font-bold text-base truncate" style={{ fontFamily: 'Playfair Display, serif' }}>MKU NEXUS</div>
+            <div className="text-white font-bold text-base truncate" style={{ fontFamily: 'Playfair Display, serif' }}>MKU Summit</div>
             <div className="text-xs text-slate-300 truncate">{roleLabels[role] || role} Portal</div>
           </div>
           <button
@@ -159,21 +343,26 @@ export default function Sidebar({ role, userName, userEmail }: SidebarProps) {
           className={`px-4 py-4 border-b text-left hover:bg-white/10 transition-colors ${collapsed ? 'justify-center' : ''} flex items-center gap-3`}
           style={{ borderColor: 'rgba(255,255,255,0.1)' }}
         >
-          {profileImage ? (
-            <img
-              src={profileImage}
-              alt="Profile"
-              className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-              style={{ border: '2px solid rgba(255,255,255,0.5)' }}
-            />
-          ) : (
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
-              style={{ background: 'rgba(255,255,255,0.15)' }}
-            >
-              {userName.charAt(0).toUpperCase()}
-            </div>
-          )}
+          <div className="relative flex-shrink-0">
+            {profileImage ? (
+              <img
+                src={profileImage}
+                alt="Profile"
+                className="w-10 h-10 rounded-full object-cover"
+                style={{ border: '2px solid rgba(255,255,255,0.5)' }}
+              />
+            ) : (
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
+                style={{ background: 'rgba(255,255,255,0.15)' }}
+              >
+                {userName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            {missingBio && (
+              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 border-2 border-slate-900 rounded-full"></span>
+            )}
+          </div>
           {!collapsed && (
             <div className="min-w-0">
               <div className="text-white font-medium text-sm truncate">{userName}</div>
@@ -191,7 +380,17 @@ export default function Sidebar({ role, userName, userEmail }: SidebarProps) {
                 className={`${itemBaseClass} ${pathname === item.href || pathname.startsWith(item.href + '/') ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
               >
                 <span className="text-lg">{item.icon}</span>
-                {!collapsed && <span className="truncate text-sm">{item.label}</span>}
+                {!collapsed && <span className="truncate text-sm flex-1">{item.label}</span>}
+                {!collapsed && item.label === 'Notifications' && notifCount > 0 && (
+                  <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto">
+                    {notifCount > 99 ? '99+' : notifCount}
+                  </span>
+                )}
+                {!collapsed && item.label === 'My Profile' && missingBio && (
+                  <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto">
+                    Setup
+                  </span>
+                )}
               </Link>
             ))}
           </div>

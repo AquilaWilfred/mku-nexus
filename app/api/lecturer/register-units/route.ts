@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
         id, code, name, description, credits, semester, year, max_students,
         department:departments(name, code),
         course_units(course_id, course:courses(code, name)),
+        enrollments(id, status),
         timetable(id, day_of_week, start_time, end_time, session_type,
           venue:venues(id, room_number, name, floor_number, capacity, building:buildings(name, has_lift)))
       `)
@@ -82,8 +83,15 @@ export async function GET(req: NextRequest) {
       .eq('is_active', true)
       .order('code')
 
+    // Map units to include the enrolled student count while dropping the large enrollments array
+    const mappedMyUnits = (myUnits || []).map((u: any) => ({
+      ...u,
+      enrolled_count: u.enrollments?.filter((e: any) => e.status === 'active').length || 0,
+      enrollments: undefined 
+    }))
+
     return NextResponse.json({
-      my_units: myUnits || [],
+      my_units: mappedMyUnits,
       available_units: trulyAvailable,
       scheduled_units: alreadyScheduled,  // Units with timetable but no lecturer (cannot register)
       courses: courses || [],

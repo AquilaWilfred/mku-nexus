@@ -18,6 +18,10 @@ export default async function ScheduleManagerProfile() {
     .eq('id', userId)
     .single()
 
+  if (!profile) {
+    redirect('/schedule-manager/dashboard')
+  }
+
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#f8f9ff' }}>
       <Sidebar role="schedule_manager" userName={user.name || ''} userEmail={user.email || ''} />

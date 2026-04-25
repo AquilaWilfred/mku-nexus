@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/authOptions'
 import { supabaseAdmin } from '@/lib/supabase'
 import { UserRole } from '@/types'
 import * as XLSX from 'xlsx'
@@ -53,12 +53,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Failed to save original timetable document' }, { status: 500 })
     }
 
-    const { data: publicData, error: publicError } = supabaseAdmin.storage
+    const { data: publicData } = supabaseAdmin.storage
       .from('materials')
       .getPublicUrl(storageData.path)
 
-    if (publicError || !publicData?.publicUrl) {
-      console.error('Storage URL error:', publicError)
+    if (!publicData?.publicUrl) {
+      console.error('Storage URL error: Failed to get public URL')
       return NextResponse.json({ success: false, error: 'Failed to get timetable file URL' }, { status: 500 })
     }
 

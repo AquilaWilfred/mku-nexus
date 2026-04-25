@@ -1,5 +1,5 @@
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/authOptions'
 import { redirect } from 'next/navigation'
 import NotificationsClient from '@/components/shared/NotificationsClient'
 import SMSidebar from '@/components/shared/SMSidebar'

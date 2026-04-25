@@ -32,7 +32,7 @@ export default async function AdminDashboard() {
     supabaseAdmin.from('events').select('*, creator:users!events_created_by_fkey(full_name)').order('created_at', { ascending: false }).limit(5),
     supabaseAdmin.from('disability_appeals').select('*, student:users!disability_appeals_student_id_fkey(full_name, student_id)').eq('status', 'pending').limit(5),
     supabaseAdmin.from('enrollments').select('enrolled_at').order('enrolled_at', { ascending: true }),
-    supabaseAdmin.from('users').select('id, full_name, email, role, created_at').order('created_at', { ascending: false }).limit(5),
+    supabaseAdmin.from('users').select('id, full_name, email, role, created_at, is_active').order('created_at', { ascending: false }).limit(5),
   ])
 
   // Build monthly enrollment trends

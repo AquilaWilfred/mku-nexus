@@ -1,4 +1,4 @@
-# MKU NEXUS — Smart Academic Platform
+# MKU Summit — Smart Academic Platform
 
 AI-powered campus management system for Mount Kenya University. Three separate portals (Student, Lecturer, Admin) with real-time AI assistant, live timetable, learning materials, disability accessibility appeals, and full admin dashboard.
 
@@ -116,7 +116,7 @@ Open [http://localhost:3000](http://localhost:3000) — you'll be redirected to 
 
 ## 🤖 AI System
 
-The NEXUS AI is powered by Claude and trained **per semester** by admins.
+The Summit AI is powered by Claude and trained **per semester** by admins.
 
 **Real-time data it accesses:**
 - Student's enrolled units + timetable
