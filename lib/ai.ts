@@ -423,8 +423,8 @@ ${notificationContext}`
     const eventDate = e.start_datetime ? new Date(e.start_datetime) : null
     const isPast = eventDate ? eventDate.getTime() < todayStart : false
     const statusTag = isPast ? '[PAST]' : '[UPCOMING/TODAY]'
-    return `${statusTag} [${e.event_type?.toUpperCase()}] ${e.title} — ${eventDate ? eventDate.toLocaleString('en-KE') : 'No date'} ${e.is_urgent ? '🚨 URGENT' : ''} ${e.venue ? `@ ${e.venue.room_number}` : ''}`
-  }).join('\n')
+    return `${statusTag} [${e.event_type?.toUpperCase()}] ${e.title} — ${eventDate ? eventDate.toLocaleString('en-KE', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'No date'} ${e.is_urgent ? '🚨 URGENT' : ''} ${e.venue ? `@ ${e.venue.room_number}` : ''}\nDescription: ${e.description ? e.description.slice(0, 150) + '...' : 'No details provided.'}`
+  }).join('\n\n')
 
   const systemOverridesContext = (activeOverrides || []).length > 0
     ? `\nRECENT SYSTEM-WIDE VENUE CHANGES & CANCELLATIONS:\n${(activeOverrides || []).map((o: any) => {
@@ -463,12 +463,18 @@ Buildings WITH lift: MAB (Main Academic Block), TECH (Technology Hub), LIB (Libr
 Buildings WITHOUT lift: SCI (Science Complex), SPORT (Sports Complex).
 
 INSTRUCTIONS:
+- PRIMARY ROLE: You are a helpful system navigator. Your goal is to make it easier for users to navigate the MKU Summit platform.
+- GREETINGS: When greeted (e.g., "hi", "hello", "good morning"), respond with a simple, friendly greeting like: "Hello! How are you doing today? How can I help you?" DO NOT proactively volunteer information about events, schedule changes, or polls unless the user explicitly asks for them.
 - Be friendly, professional, helpful. Use emojis appropriately.
 - Use appropriate verb tenses based on time: past tense for completed events, present continuous for ongoing activities, future tense for upcoming events. Make conversations feel natural and real-time.
-- Proactively mention upcoming events, recent announcements, and important notifications when they are relevant to the conversation or when the user might benefit from knowing about them.
-- For venue changes/cancellations: proactively mention them when the student asks about that unit.
-- For polls: tell students about active polls and encourage participation.
-- For events: ONLY mention [UPCOMING/TODAY] events by default. DO NOT list [PAST] events unless the user explicitly asks for previous/past events. You can filter them by name (e.g., "events about coding"). If they ask for events during their "free time" or "dead time", check the event's date and time against the 'YOUR FREE TIME SLOTS' list provided in their context.
+- For venue changes/cancellations: ONLY mention them when the user specifically asks about that unit or their timetable.
+- For polls: ONLY tell users about active polls if they ask.
+- For events:
+  1. ONLY provide event information if the user explicitly asks about events, announcements, or what's happening on campus.
+  2. When asked, ONLY mention events marked as [UPCOMING/TODAY]. NEVER list or mention [PAST] events unless the user explicitly uses words like "past", "previous", or "old" events.
+  3. Keep your initial response BRIEF and CONCISE. Just mention the event title, date, time, and venue as a short bulleted list. DO NOT provide full descriptions initially. Let the user know they can ask for more details if an event interests them.
+  4. If there are no [UPCOMING/TODAY] events, simply say there are no upcoming events scheduled.
+  5. If they ask for events during their "free time" or "dead time", check the event's date and time against the 'YOUR FREE TIME SLOTS' list provided in their context.
 - For academic advice: Act as an academic advisor. If they ask what to enroll in, always suggest prioritizing their ❌ FAILED units (retakes) first. Congratulate them on their ✅ PASSED units if they bring up their grades.
 - ACTION EXECUTION: You have the ability to execute actions for the student.
   If the student explicitly asks you to enroll them in a unit, append this exact tag at the end of your response: [[ENROLL:UNIT_CODE]] (e.g., [[ENROLL:CS101]]).
