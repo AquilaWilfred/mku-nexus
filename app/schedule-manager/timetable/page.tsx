@@ -29,6 +29,13 @@ export default function SMTimetable() {
   const [uploadPreview, setUploadPreview] = useState<string>('')
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long' })
 
+  // New state for search and filter
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterDay, setFilterDay] = useState('')
+  const [filterLecturer, setFilterLecturer] = useState('')
+  const [filterCourse, setFilterCourse] = useState('')
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
+
   useEffect(() => {
     async function load() {
       const [ttRes, venRes] = await Promise.all([
@@ -42,6 +49,29 @@ export default function SMTimetable() {
     }
     load()
   }, [])
+
+  // Filtered entries based on search and filters
+  const filteredEntries = entries.filter(entry => {
+    const matchesSearch = !searchQuery ||
+      (entry.unit?.code?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (entry.unit?.name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (entry.unit?.lecturer?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()))
+    const matchesDay = !filterDay || entry.day_of_week === filterDay
+    const matchesLecturer = !filterLecturer || entry.unit?.lecturer?.full_name?.toLowerCase().includes(filterLecturer.toLowerCase())
+    const matchesCourse = !filterCourse || (entry.unit?.course_units || []).some((cu: any) => cu.course_id === filterCourse || cu.course?.id === filterCourse)
+    return matchesSearch && matchesDay && matchesLecturer && matchesCourse
+  })
+
+  const courseOptions = Array.from(
+    new Map(
+      entries
+        .flatMap(entry => entry.unit?.course_units || [])
+        .filter((cu: any) => cu?.course?.id)
+        .map((cu: any) => [cu.course.id, cu.course])
+    ).values()
+  )
+
+  const uniqueUnitCount = new Set(entries.map(entry => entry.unit?.id).filter(Boolean)).size
 
   useEffect(() => {
     return () => {
@@ -130,10 +160,70 @@ export default function SMTimetable() {
           <h1 className="text-2xl font-bold" style={{ fontFamily: 'Playfair Display, serif', color: '#0d47a1' }}>
             📅 Manage Timetable
           </h1>
-          <p className="text-gray-500 text-sm mt-1">{entries.length} entries · Click any cell to edit</p>
+          <p className="text-gray-500 text-sm mt-1">{filteredEntries.length} scheduled entries · {uniqueUnitCount} unique units this semester</p>
         </div>
 
-        {/* Upload Section */}
+        {/* Search and Filter Controls */}
+        <div className={"nexus-card p-4 mb-6 " + (viewMode === 'table' ? 'sticky top-0 z-20 bg-white' : '')}>
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="flex-1 min-w-64">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Search Units/Lecturers</label>
+              <input
+                type="text"
+                placeholder="Search by unit code, name, or lecturer..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Day</label>
+              <select
+                value={filterDay}
+                onChange={(e) => setFilterDay(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All Days</option>
+                {DAYS.map(day => <option key={day} value={day}>{day}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Lecturer</label>
+              <input
+                type="text"
+                placeholder="Lecturer name..."
+                value={filterLecturer}
+                onChange={(e) => setFilterLecturer(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Course</label>
+              <select
+                value={filterCourse}
+                onChange={(e) => setFilterCourse(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All Courses</option>
+                {courseOptions.map((course: any) => (
+                  <option key={course.id} value={course.id}>{course.code} — {course.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">View Mode</label>
+              <select
+                value={viewMode}
+                onChange={(e) => setViewMode(e.target.value as 'grid' | 'table')}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="grid">Grid View</option>
+                <option value="table">Table View</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <div className="nexus-card p-6 mb-6">
           <h2 className="text-lg font-bold mb-4" style={{ fontFamily: 'Playfair Display, serif', color: '#0d47a1' }}>
             📤 Upload Timetable Document
@@ -227,7 +317,7 @@ export default function SMTimetable() {
               <div key={slot.label} className="grid mb-2" style={{ gridTemplateColumns: '110px repeat(7,1fr)', gap: '6px' }}>
                 <div className="flex items-center justify-end pr-3 text-xs font-medium" style={{ color: '#0d47a180' }}>{slot.label}</div>
                 {DAYS.map(day => {
-                  const entry = entries.find(e => e.day_of_week === day && e.start_time?.slice(0, 5) === slot.start)
+                  const entry = filteredEntries.find(e => e.day_of_week === day && e.start_time?.slice(0, 5) === slot.start)
                   const hasOverride = entry?.has_active_override
                   if (!entry) return <div key={day} className="rounded-xl h-20" style={{ background: '#f0f4ff', border: '1px dashed #bbdefb' }} />
                   return (
@@ -248,6 +338,53 @@ export default function SMTimetable() {
             ))}
           </div>
         </div>
+
+        {/* Table View */}
+        {viewMode === 'table' && (
+          <div className="nexus-card p-4 mt-6 overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Unit Code</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Unit Name</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Lecturer</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Day</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Time</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Venue</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredEntries.map(entry => (
+                  <tr key={entry.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900">{entry.unit?.code}</td>
+                    <td className="px-4 py-3 text-gray-700">{entry.unit?.name}</td>
+                    <td className="px-4 py-3 text-gray-700">{entry.unit?.lecturer?.full_name || 'null'}</td>
+                    <td className="px-4 py-3 text-gray-700">{entry.day_of_week}</td>
+                    <td className="px-4 py-3 text-gray-700">{entry.start_time?.slice(0, 5)} - {entry.end_time?.slice(0, 5)}</td>
+                    <td className="px-4 py-3 text-gray-700">{entry.venue?.room_number || 'TBA'}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => {
+                          setSelected(entry)
+                          setEditForm({ venue_id: entry.venue_id || '', day_of_week: entry.day_of_week, start_time: entry.start_time?.slice(0, 5), end_time: entry.end_time?.slice(0, 5), reason: '' })
+                        }}
+                        className="text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filteredEntries.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                No timetable entries match your filters.
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {selected && (

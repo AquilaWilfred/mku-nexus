@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
     let query = supabaseAdmin
       .from('timetable')
-      .select('*, unit:units(id, code, name, lecturer_id, lecturer:users!units_lecturer_id_fkey(id, full_name)), venue:venues(id, room_number, name, floor_number, building:buildings(name, code, has_lift))')
+      .select('*, unit:units(id, code, name, lecturer_id, lecturer:users!units_lecturer_id_fkey(id, full_name), course_units(course_id, course:courses(id, code, name))), venue:venues(id, room_number, name, floor_number, building:buildings(name, code, has_lift))')
       .order('day_of_week')
       .order('start_time')
 
