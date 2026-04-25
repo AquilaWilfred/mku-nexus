@@ -85,7 +85,7 @@ export default function LecturerUnitsPage() {
 
   // Students list modal
   const [studentsModal, setStudentsModal] = useState<Unit | null>(null)
-  const [unitStudents, setUnitStudents] = useState<any[]>([])
+  const [unitStudents, setUnitStudents] = useState<Array<{ id?: string; full_name?: string; student_id?: string; email?: string; phone?: string }>>([])
   const [loadingStudents, setLoadingStudents] = useState(false)
 
   useEffect(() => { fetchMyUnits(); fetchVenues() }, [])
@@ -219,7 +219,7 @@ export default function LecturerUnitsPage() {
     setLoadingStudents(true)
     setUnitStudents([])
     try {
-      const res = await fetch(`/api/lecturer/unit-students?unit_id=${unit.id}`)
+      const res = await fetch(`/api/lecturer/enrollments?unit_id=${unit.id}`)
       const d = await res.json()
       if (d.success) setUnitStudents(d.data || [])
       else toast.error(d.error || 'Failed to load students')
@@ -232,8 +232,8 @@ export default function LecturerUnitsPage() {
 
   function exportStudentsToCSV() {
     if (!studentsModal || unitStudents.length === 0) return
-    const headers = ['Name', 'Student ID', 'Email']
-    const csvData = unitStudents.map(s => `"${s.full_name || ''}","${s.student_id || ''}","${s.email || ''}"`)
+    const headers = ['Name', 'Registration Number', 'Phone']
+    const csvData = unitStudents.map(s => `"${s.full_name || ''}","${s.student_id || ''}","${s.phone || ''}"`)
     const csvContent = [headers.join(','), ...csvData].join('\n')
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -330,10 +330,10 @@ export default function LecturerUnitsPage() {
                             </span>
                             <span className="badge badge-purple text-xs">{u.credits} cr</span>
                             <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold" style={{ background: '#e3f2fd', color: '#1565c0' }}>
-                              👥 {u.enrolled_count || 0} / {u.max_students} Students
+                              👥 {u.enrolled_count || 0} Students
                             </span>
-                            <button onClick={() => fetchUnitStudents(u)}
-                              className="text-xs font-semibold px-2.5 py-0.5 rounded transition-colors ml-1"
+                            <button onClick={() => fetchUnitStudents(u)} disabled={!(u.enrolled_count > 0)}
+                              className="text-xs font-semibold px-2.5 py-0.5 rounded transition-colors ml-1 disabled:opacity-50 disabled:cursor-not-allowed"
                               style={{ background: '#f3e5f5', color: '#6a1b9a' }}>
                               List
                             </button>
@@ -774,9 +774,9 @@ export default function LecturerUnitsPage() {
 
       {/* STUDENTS MODAL */}
       {studentsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
+        <div className="fixed inset-0 z-50" style={{ background: 'rgba(0,0,0,0.55)' }}>
+          <div className="absolute right-0 top-0 h-full w-1/2 bg-white shadow-2xl overflow-y-auto">
+            <div className="p-6 h-full flex flex-col">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-lg font-bold" style={{ fontFamily: 'Playfair Display, serif', color: '#6a1b9a' }}>
                   👥 Enrolled Students — {studentsModal.code}
@@ -791,19 +791,40 @@ export default function LecturerUnitsPage() {
               </div>
             )}
               {loadingStudents ? (
-                <div className="text-center py-10 text-gray-400">⏳ Loading students...</div>
+                <div className="flex-1 flex items-center justify-center text-gray-400">⏳ Loading students...</div>
               ) : unitStudents.length === 0 ? (
-                <div className="text-center py-10 text-gray-400">No students enrolled yet.</div>
+                <div className="flex-1 flex items-center justify-center text-gray-400">No students enrolled yet.</div>
               ) : (
-                <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
-                  {unitStudents.map((s, idx) => (
-                    <div key={idx} className="flex justify-between items-center p-3 rounded-xl border" style={{ borderColor: '#e8eaf6' }}>
-                      <div>
-                        <div className="font-bold text-sm text-gray-800">{s.full_name}</div>
-                        <div className="text-xs text-gray-500">{s.student_id} • {s.email}</div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="flex-1 overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Registration Number</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Phone</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {unitStudents.map((s, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-800 font-medium">{s.full_name}</td>
+                          <td className="px-4 py-3 text-gray-600">{s.student_id}</td>
+                          <td className="px-4 py-3 text-gray-600">
+                            {s.phone ? (
+                              s.phone
+                            ) : (
+                              <span 
+                                className="text-red-500 cursor-help" 
+                                title={`Contact ${s.full_name} (${s.student_id}) to add their phone number`}
+                              >
+                                null
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

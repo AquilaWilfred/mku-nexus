@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     // Fetch active enrollments for this unit along with student details
     const { data, error } = await supabaseAdmin
       .from('enrollments')
-      .select('id, status, student:users(id, full_name, email, student_id)')
+      .select('id, status, student:users(id, full_name, email, student_id, phone)')
       .eq('unit_id', unitId)
       .eq('status', 'active')
 
