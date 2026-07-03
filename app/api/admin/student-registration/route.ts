@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
       data: {
         student: updated,
         registrationNumber,
-        course,
+        courseId,
         message: 'Registration number generated and assigned successfully',
       },
       success: true,
@@ -137,10 +137,10 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       data: {
-        course,
+        courseId,
         registeredStudentsCount: registeredStudents?.length || 0,
         registrationFormat: 'COURSE_CODE/YEAR_OF_STUDY/5_DIGIT_CODE',
-        example: `${course.code}/1/12345`,
+        example: `${unit.code}/1/12345`,
       },
       success: true,
     })

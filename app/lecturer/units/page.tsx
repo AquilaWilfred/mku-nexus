@@ -259,7 +259,8 @@ export default function LecturerUnitsPage() {
     : scheduled
 
   const selectedUnit = [...filteredAvailable, ...filteredScheduled].find(u => u.id === selUnit)
-  const selectedUnitHasSchedule = selectedUnit?.timetable?.length > 0
+  const timetable = selectedUnit?.timetable || []
+  const selectedUnitHasSchedule = timetable.length > 0
   const selectedSlotObj = SESSION_SLOTS.find(s => s.start === selSlot)
 
   return (
@@ -339,7 +340,7 @@ export default function LecturerUnitsPage() {
                             <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold" style={{ background: '#e3f2fd', color: '#1565c0' }}>
                               👥 {u.enrolled_count || 0} Students
                             </span>
-                            <button onClick={() => fetchUnitStudents(u)} disabled={!(u.enrolled_count > 0)}
+                            <button onClick={() => fetchUnitStudents(u)} disabled={((u.enrolled_count ?? 0) <= 0)}
                               className="text-xs font-semibold px-2.5 py-0.5 rounded transition-colors ml-1 disabled:opacity-50 disabled:cursor-not-allowed"
                               style={{ background: '#f3e5f5', color: '#6a1b9a' }}>
                               List

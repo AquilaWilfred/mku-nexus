@@ -47,7 +47,7 @@ export async function generateStudentRegistrationNumber(courseId: string, yearOf
       .eq('id', courseId)
       .single()
 
-    let courseCode: string | undefined
+    let courseCode: string
     if (!courseError && courseRow) {
       courseCode = (courseRow as any).code
     } else {

@@ -230,7 +230,7 @@ export async function POST(req: NextRequest) {
     if (venueConflict && venueConflict.length > 0) {
       const conflictUnit = (venueConflict[0] as any).unit?.code || 'another unit'
       return NextResponse.json({
-        error: `This venue is already booked for ${slot.label} on ${day_of_week} by ${conflictUnit}. Please choose a different venue or slot.`
+        error: `This venue is already booked for ${slot!.label} on ${day_of_week} by ${conflictUnit}. Please choose a different venue or slot.`
       }, { status: 409 })
     }
 
@@ -247,7 +247,7 @@ export async function POST(req: NextRequest) {
     if (myConflict.length > 0) {
       const conflictUnit = (myConflict[0] as any).unit?.code || 'another unit'
       return NextResponse.json({
-        error: `You already have ${conflictUnit} scheduled at ${slot.label} on ${day_of_week}. Please choose a different slot.`
+        error: `You already have ${conflictUnit} scheduled at ${slot!.label} on ${day_of_week}. Please choose a different slot.`
       }, { status: 409 })
     }
 
