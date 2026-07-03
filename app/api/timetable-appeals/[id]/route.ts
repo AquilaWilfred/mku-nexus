@@ -3,6 +3,49 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/authOptions'
 import { supabaseAdmin } from '@/lib/supabase'
 
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const userId = (session.user as any).id
+    const role = (session.user as any).role
+    const { id } = params
+
+    if (!id) return NextResponse.json({ error: 'Appeal ID is required' }, { status: 400 })
+
+    const { data, error } = await supabaseAdmin
+      .from('timetable_appeals')
+      .select(
+        `*,
+        submitter:users!timetable_appeals_submitted_by_fkey(id, full_name, email, role, student_id),
+        unit:units!timetable_appeals_unit_id_fkey(id, code, name, lecturer_id),
+        current_venue:venues!timetable_appeals_current_venue_id_fkey(id, room_number, name, building:buildings(name)),
+        requested_venue:venues!timetable_appeals_requested_venue_id_fkey(id, room_number, name, building:buildings(name)),
+        reviewer:users!timetable_appeals_reviewed_by_fkey(id, full_name)`
+      )
+      .eq('id', id)
+      .single()
+
+    if (error || !data) return NextResponse.json({ error: 'Appeal not found' }, { status: 404 })
+
+    if (role === 'student' && data.submitted_by !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    if (role === 'lecturer') {
+      const unit = data.unit as any
+      if (data.submitted_by !== userId && unit?.lecturer_id !== userId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
+
+    return NextResponse.json({ data, success: true })
+  } catch (error) {
+    console.error('Fetch appeal detail error:', error)
+    return NextResponse.json({ error: 'Failed to fetch appeal' }, { status: 500 })
+  }
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions)

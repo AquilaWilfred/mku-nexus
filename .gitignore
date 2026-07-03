@@ -2,3 +2,18 @@ node_modules/
 .next/
 .env
 .env.local
+
+# ignore build artifacts
+/build/
+dist/
+
+# ignore system files 
+*.log
+*.tmp
+*.swp
+
+# ignore OS files
+.DS_Store
+Thumbs.db
+
+

@@ -411,7 +411,7 @@ CREATE TABLE IF NOT EXISTS course_units (
 );
 
 -- Track which course a student is registered for
-ALTER TABLE users ADD COLUMN IF NOT EXISTS course_id UUID REFERENCES courses(id);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS course_id UUID REFERENCES units(id);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS year_of_study INTEGER DEFAULT 1;
 
 -- ============================================

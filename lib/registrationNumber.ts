@@ -40,18 +40,27 @@ export async function generateUnique5DigitCode(courseCode: string): Promise<stri
  */
 export async function generateStudentRegistrationNumber(courseId: string, yearOfStudy: number): Promise<string> {
   try {
-    // Fetch the unit to get its code
-    const { data: unit, error: unitError } = await supabaseAdmin
-      .from('units')
+    // Try to fetch a course first (newer schema), otherwise fall back to units
+    const { data: courseRow, error: courseError } = await supabaseAdmin
+      .from('courses')
       .select('code')
       .eq('id', courseId)
       .single()
 
-    if (unitError || !unit) {
-      throw new Error(`Unit not found: ${courseId}`)
+    let courseCode: string | undefined
+    if (!courseError && courseRow) {
+      courseCode = (courseRow as any).code
+    } else {
+      const { data: unit, error: unitError } = await supabaseAdmin
+        .from('units')
+        .select('code')
+        .eq('id', courseId)
+        .single()
+      if (unitError || !unit) {
+        throw new Error(`Unit/Course not found: ${courseId}`)
+      }
+      courseCode = (unit as any).code
     }
-
-    const courseCode = unit.code
 
     // Generate unique 5-digit code
     const uniqueCode = await generateUnique5DigitCode(courseCode)

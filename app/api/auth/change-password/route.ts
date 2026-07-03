@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const password_hash = await bcrypt.hash(newPassword, 12)
     const { error } = await supabaseAdmin
       .from('users')
-      .update({ password_hash, must_change_password: false, updated_at: new Date().toISOString() })
+      .update({ password_hash, updated_at: new Date().toISOString() })
       .eq('id', userId)
 
     if (error) throw error

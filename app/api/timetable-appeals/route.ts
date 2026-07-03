@@ -177,7 +177,7 @@ export async function PATCH(req: NextRequest) {
         title: `📝 Request Update — ${unitCode}`,
         message: message,
         type: 'info',
-        link: '/student/timetable-appeal',
+        link: `/student/timetable-appeal/${data.id}`,
         action_type: 'appeal_update'
       })
 

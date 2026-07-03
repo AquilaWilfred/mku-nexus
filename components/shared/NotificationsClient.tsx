@@ -85,7 +85,13 @@ export default function NotificationsClient({ userRole }: { userRole: string }) 
     }
     // Navigate if link provided
     if (n.link) {
-      router.push(n.link)
+      if (typeof n.link === 'string' && n.link.startsWith('/api/')) {
+        // Avoid navigating directly to API endpoints that may return files (XML, etc.)
+        // Instead, open the notifications page for the current role
+        router.push(`/${userRole}/notifications`)
+      } else {
+        router.push(n.link)
+      }
     }
   }
 

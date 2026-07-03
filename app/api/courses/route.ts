@@ -7,9 +7,24 @@ export async function GET() {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Prefer a dedicated `courses` table if present; fall back to `units` for compatibility
+    try {
+      const { data: courses, error: coursesError } = await supabaseAdmin
+        .from('courses')
+        .select('id, code, name, department_id, duration_years, description')
+        .eq('is_active', true)
+        .order('name')
+
+      if (!coursesError && courses && courses.length > 0) {
+        return NextResponse.json({ data: courses, success: true })
+      }
+    } catch (err) {
+      // ignore and fall back
+    }
+
     const { data, error } = await supabaseAdmin
       .from('units')
-      .select('*, department:departments(name, code)')
+      .select('id, code, name, description, department:departments(name, code)')
       .eq('is_active', true)
       .order('name')
     if (error) throw error

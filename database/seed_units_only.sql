@@ -12,7 +12,7 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS file_url TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS file_name VARCHAR(255);
 ALTER TABLE events ADD COLUMN IF NOT EXISTS file_size BIGINT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS file_type VARCHAR(20);
-ALTER TABLE users ADD COLUMN IF NOT EXISTS course_id UUID REFERENCES courses(id);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS course_id UUID REFERENCES units(id);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS year_of_study INTEGER DEFAULT 1;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT false;
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT false;
@@ -122,7 +122,7 @@ INSERT INTO departments (name, code, description) VALUES
 ('Business Management',      'BM',  'Business, Commerce, Marketing and Procurement'),
 ('Law',                      'LW',  'Legal studies, Labour Law and Constitutional Law'),
 ('Education & Development',  'ED',  'Development Studies, Gender, Population and Human Rights')
-ON CONFLICT (code) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- ============================================================
 -- STEP 2: Buildings & Venues
@@ -134,7 +134,7 @@ INSERT INTO buildings (name, code, has_lift, floors, accessibility_notes) VALUES
 ('Administration Block', 'ADM',   true,  2, 'Lift available'),
 ('Science Complex',      'SCI',   false, 3, 'No lift — ground floor labs accessible only'),
 ('Sports Complex',       'SPORT', false, 1, 'Ground floor only, fully accessible')
-ON CONFLICT (code) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 INSERT INTO venues (building_id, room_number, name, capacity, floor_number, has_projector, has_ac, is_accessible) VALUES
 ((SELECT id FROM buildings WHERE code='MAB'),  'MAB-101',  'Lecture Hall 1',       120, 1, true,  true,  true),
@@ -151,7 +151,7 @@ INSERT INTO venues (building_id, room_number, name, capacity, floor_number, has_
 ((SELECT id FROM buildings WHERE code='LIB'),  'LIB-201',  'Research Room',         20, 2, true,  true,  true),
 ((SELECT id FROM buildings WHERE code='SCI'),  'SCI-001',  'Science Lab 1',         40, 0, true,  false, true),
 ((SELECT id FROM buildings WHERE code='ADM'),  'ADM-101',  'Boardroom',             20, 1, true,  true,  true)
-ON CONFLICT (room_number) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- ============================================================
 -- STEP 3: Degree Courses (students select these on first login)
@@ -184,7 +184,7 @@ INSERT INTO courses (code, name, department_id, duration_years, description) VAL
 ('BED',  'Bachelor of Education in Development Studies',
  (SELECT id FROM departments WHERE code='ED'),  4,
  'Development theory, gender studies, population, human rights and policy.')
-ON CONFLICT (code) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- ============================================================
 -- STEP 4: Units (30 real units from MKU Jan–Apr 2026 Timetable)
@@ -287,7 +287,7 @@ INSERT INTO units (code, name, description, credits, semester, year, department_
 ('BLA1102','French I',
  'Introductory French: grammar, vocabulary, reading comprehension and basic conversation.',
  3,'Semester 1',2026,(SELECT id FROM departments WHERE code='LW'),true)
-ON CONFLICT (code) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- ============================================================
 -- STEP 5: Link units to their degree courses

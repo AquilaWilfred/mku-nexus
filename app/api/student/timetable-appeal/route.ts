@@ -12,7 +12,6 @@ export async function GET(req: NextRequest) {
     const unitId = req.nextUrl.searchParams.get('unit_id')
     if (!unitId) return NextResponse.json({ error: 'unit_id is required' }, { status: 400 })
 
-    // Fetch active enrollments for this unit along with student details
     const { data, error } = await supabaseAdmin
       .from('enrollments')
       .select('id, status, student:users(id, full_name, email, student_id)')
@@ -21,7 +20,6 @@ export async function GET(req: NextRequest) {
 
     if (error) throw error
 
-    // Flatten the response for easier frontend rendering
     const students = (data || []).map((e: any) => ({
       enrollment_id: e.id,
       ...e.student

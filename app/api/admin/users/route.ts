@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
     let query = supabaseAdmin
       .from('users')
-      .select('id, email, full_name, role, student_id, staff_id, phone, profile_image, is_active, is_disabled, disability_type, must_change_password, created_at')
+      .select('id, email, full_name, role, student_id, staff_id, phone, profile_image, is_active, is_disabled, disability_type, created_at')
       .order('created_at', { ascending: false })
 
     if (role && role !== 'all') query = query.eq('role', role)
@@ -57,16 +57,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'courseId is required when registering a student' }, { status: 400 })
     }
 
-    // If student is being registered, verify unit exists
+    // If student is being registered, verify the provided course exists.
+    // Prefer `courses` table, fall back to `units` for backwards compatibility.
     if (role === 'student' && courseId) {
-      const { data: unit, error: unitError } = await supabaseAdmin
-        .from('units')
+      const { data: courseRow, error: courseError } = await supabaseAdmin
+        .from('courses')
         .select('id, code')
         .eq('id', courseId)
         .single()
 
-      if (unitError || !unit) {
-        return NextResponse.json({ error: 'Unit not found' }, { status: 404 })
+      if (!courseError && courseRow) {
+        // OK
+      } else {
+        const { data: unit, error: unitError } = await supabaseAdmin
+          .from('units')
+          .select('id, code')
+          .eq('id', courseId)
+          .single()
+        if (unitError || !unit) {
+          return NextResponse.json({ error: 'Course/Unit not found' }, { status: 404 })
+        }
       }
     }
 
@@ -94,7 +104,6 @@ export async function POST(req: NextRequest) {
       phone: phone || null,
       is_disabled: is_disabled || false,
       disability_type: disability_type || null,
-      must_change_password: true,
       is_active: true,
     }
 
@@ -117,6 +126,12 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       console.error('User creation error:', error)
+      // Check for specific constraint errors
+      if (error.message?.includes('foreign key') || error.message?.includes('violates foreign key constraint')) {
+        return NextResponse.json({
+          error: `Database foreign key error. Please run migration_v11_fix_course_fk.sql to fix the course_id constraint.`,
+        }, { status: 400 })
+      }
       // Supabase will return a constraint error if DB not migrated
       if (error.message?.includes('check') || error.message?.includes('constraint')) {
         return NextResponse.json({

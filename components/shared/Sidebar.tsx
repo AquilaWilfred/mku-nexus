@@ -264,16 +264,21 @@ export default function Sidebar({ role, userName, userEmail }: SidebarProps) {
                       const todayNotifs = topNotifs.filter(n => new Date(n.created_at).toDateString() === new Date().toDateString());
                       const earlierNotifs = topNotifs.filter(n => new Date(n.created_at).toDateString() !== new Date().toDateString());
 
-                      const renderNotif = (n: any) => (
-                        <Link key={n.id} href={n.link || `/${role === 'schedule_manager' ? 'schedule-manager' : role}/notifications`} onClick={() => setShowNotifDropdown(false)} className={`block p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors ${!n.is_read ? 'bg-blue-50/30' : ''}`}>
-                          <div className="flex justify-between items-start mb-1 gap-2">
-                            <h4 className={`text-xs ${!n.is_read ? 'font-bold text-blue-900' : 'font-semibold text-slate-700'}`}>{n.title}</h4>
-                            {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-600 mt-1 flex-shrink-0"></span>}
-                          </div>
-                          <p className="text-xs text-slate-500 line-clamp-2 leading-snug">{n.message}</p>
-                          <span className="text-[10px] text-slate-400 mt-2 block">{getRelativeTime(n.created_at)}</span>
-                        </Link>
-                      );
+                      const renderNotif = (n: any) => {
+                        const safeHref = (n.link && typeof n.link === 'string' && !n.link.startsWith('/api/'))
+                          ? n.link
+                          : `/${role === 'schedule_manager' ? 'schedule-manager' : role}/notifications`
+                        return (
+                          <Link key={n.id} href={safeHref} onClick={() => setShowNotifDropdown(false)} className={`block p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors ${!n.is_read ? 'bg-blue-50/30' : ''}`}>
+                            <div className="flex justify-between items-start mb-1 gap-2">
+                              <h4 className={`text-xs ${!n.is_read ? 'font-bold text-blue-900' : 'font-semibold text-slate-700'}`}>{n.title}</h4>
+                              {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-600 mt-1 flex-shrink-0"></span>}
+                            </div>
+                            <p className="text-xs text-slate-500 line-clamp-2 leading-snug">{n.message}</p>
+                            <span className="text-[10px] text-slate-400 mt-2 block">{getRelativeTime(n.created_at)}</span>
+                          </Link>
+                        )
+                      }
 
                       return (
                         <>

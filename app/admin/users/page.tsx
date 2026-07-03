@@ -25,12 +25,15 @@ export default function AdminUsers() {
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [courses, setCourses] = useState<any[]>([])
   const [form, setForm] = useState({
     email: '', password: '', full_name: '', role: 'student' as UserRole,
     student_id: '', staff_id: '', phone: '', is_disabled: false, disability_type: '',
+    courseId: '', yearOfStudy: 1,
   })
 
   useEffect(() => { loadUsers() }, [filter, search])
+  useEffect(() => { loadCourses() }, [])
 
   async function loadUsers() {
     const params = new URLSearchParams()
@@ -39,6 +42,12 @@ export default function AdminUsers() {
     const res = await fetch(`/api/admin/users?${params}`)
     const data = await res.json()
     if (data.success) setUsers(data.data)
+  }
+
+  async function loadCourses() {
+    const res = await fetch('/api/courses')
+    const data = await res.json()
+    if (data.success) setCourses(data.data)
   }
 
   async function createUser(e: React.FormEvent) {
@@ -54,7 +63,7 @@ export default function AdminUsers() {
       if (data.success) {
         toast.success(`${form.role.charAt(0).toUpperCase() + form.role.slice(1)} created successfully!`)
         setShowForm(false)
-        setForm({ email: '', password: '', full_name: '', role: 'student', student_id: '', staff_id: '', phone: '', is_disabled: false, disability_type: '' })
+        setForm({ email: '', password: '', full_name: '', role: 'student', student_id: '', staff_id: '', phone: '', is_disabled: false, disability_type: '', courseId: '', yearOfStudy: 1 })
         loadUsers()
       } else {
         toast.error(data.error || 'Failed to create user')
@@ -147,10 +156,32 @@ export default function AdminUsers() {
                     <input type="password" className="nexus-input" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required minLength={8} />
                   </div>
                   {form.role === 'student' && (
-                    <div>
-                      <label className="nexus-label">Student ID</label>
-                      <input className="nexus-input" value={form.student_id} onChange={e => setForm(f => ({ ...f, student_id: e.target.value }))} placeholder="e.g., MKU/2024/001" />
-                    </div>
+                    <>
+                      <div>
+                        <label className="nexus-label">Course *</label>
+                        <select className="nexus-input" value={form.courseId} onChange={e => setForm(f => ({ ...f, courseId: e.target.value }))} required>
+                          <option value="">Select a course</option>
+                          {courses.map(course => (
+                            <option key={course.id} value={course.id}>
+                              {course.code} - {course.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="nexus-label">Year of Study</label>
+                        <select className="nexus-input" value={form.yearOfStudy} onChange={e => setForm(f => ({ ...f, yearOfStudy: parseInt(e.target.value) }))}>
+                          <option value={1}>Year 1</option>
+                          <option value={2}>Year 2</option>
+                          <option value={3}>Year 3</option>
+                          <option value={4}>Year 4</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="nexus-label">Student ID</label>
+                        <input className="nexus-input" value={form.student_id} onChange={e => setForm(f => ({ ...f, student_id: e.target.value }))} placeholder="e.g., MKU/2024/001" />
+                      </div>
+                    </>
                   )}
                   {(form.role === 'lecturer' || form.role === 'admin' || form.role === 'schedule_manager') && (
                     <div>

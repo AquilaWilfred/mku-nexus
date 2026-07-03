@@ -69,7 +69,6 @@ export const authOptions: AuthOptions = {
         token.id = u.id
         token.role = u.role
         token.full_name = u.full_name
-        token.must_change_password = u.must_change_password || false
         token.course_id = u.course_id || null
         token.year_of_study = u.year_of_study || 1
         token.is_active = u.is_active !== false
@@ -95,7 +94,7 @@ export const authOptions: AuthOptions = {
         try {
           const { data: freshUser } = await supabaseAdmin
             .from('users')
-            .select('id, role, full_name, course_id, year_of_study, must_change_password, is_active')
+            .select('id, role, full_name, course_id, year_of_study, is_active')
             .eq('id', token.id as string)
             .single()
           if (freshUser) {
@@ -115,7 +114,6 @@ export const authOptions: AuthOptions = {
       if (token && session.user) {
         (session.user as any).id = token.id as string
         ;(session.user as any).role = token.role as UserRole
-        ;(session.user as any).must_change_password = token.must_change_password as boolean
         ;(session.user as any).course_id = token.course_id || null
         ;(session.user as any).year_of_study = token.year_of_study || 1
         ;(session.user as any).is_active = token.is_active !== false
